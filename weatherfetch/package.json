@@ -9,6 +9,6 @@
   "author": "Michele Schäuble",
   "license": "ISC",
   "dependencies": {
-    "openweathermap": "^0.1.1",
+    "openweathermap": "^0.1.1"
   }
 }
