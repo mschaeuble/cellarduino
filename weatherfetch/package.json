@@ -2,14 +2,13 @@
   "name": "sensorserver",
   "version": "1.0.0",
   "description": "",
-  "main": "server.js",
+  "main": "weatherfetch.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Michele Schäuble",
   "license": "ISC",
   "dependencies": {
-    "restify": "^2.8.2",
-    "sqlite3": "^2.2.7"
+    "openweathermap": "^0.1.1",
   }
 }
