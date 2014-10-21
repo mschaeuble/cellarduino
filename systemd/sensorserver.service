@@ -1,0 +1,11 @@
+[Unit]
+Description=SensorServer
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/michele/sensorserver/app/
+ExecStart=/usr/bin/node server.js
+#StandardOutput=syslog
