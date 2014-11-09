@@ -16,6 +16,11 @@ weather.now({q:'Zwillikon,CH'}, function(weather) {
   currentConditions.temperature = weather.main.temp;
   currentConditions.humidity = weather.main.humidity;
 
+  if (currentConditions.temperature == -273.15 || currentConditions.humidity == 0) {
+    console.log("data error");
+    return;
+  }
+
   var request = http.request(options, function(res) {
     console.log('STATUS: ' + res.statusCode);
     console.log('HEADERS: ' + JSON.stringify(res.headers));

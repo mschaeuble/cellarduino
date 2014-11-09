@@ -1,0 +1,2 @@
+Cronjob configuration:
+*/5 * * * * /usr/bin/node /home/michele/sensorserver/app/weatherfetch.js
