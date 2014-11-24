@@ -6,6 +6,6 @@ WantedBy=multi-user.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/michele/sensorserver/app/
+WorkingDirectory=/home/michele/projects/cellarduino/sensorserver/app/
 ExecStart=/usr/bin/node server.js
 #StandardOutput=syslog
