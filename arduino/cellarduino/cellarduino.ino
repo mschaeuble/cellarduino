@@ -10,7 +10,7 @@
 
 #define MIN_ABS_HUMIDITY_DIFF 2
 #define MIN_INDOOR_TEMPERATURE 18
-#define MAX_ACCEPTABLE_REL_INDOOR_HUMIDITY 65
+#define MAX_ACCEPTABLE_REL_INDOOR_HUMIDITY 63
 
 #define SENSOR_PIN 3
 #define SENSOR_TYPE DHT22
@@ -52,6 +52,8 @@ struct SensorData {
   float temperature;
   float relativeHumidity;
 };
+
+boolean fanIsOn = false;
 
 DHT dht(SENSOR_PIN, SENSOR_TYPE);
 RestClient restClient = RestClient(SERVER_IP, SERVER_PORT);
@@ -99,25 +101,12 @@ void loop() {
   float absIndoor = calculateAbsoluteHumidity(indoorClimate.temperature, indoorClimate.relativeHumidity);
   float absOutdoor = calculateAbsoluteHumidity(outdoorClimate.temperature, outdoorClimate.relativeHumidity);
   
-  int lineNumber;
-  if (absIndoor > absOutdoor) {
-    lineNumber = 0;
-  } else {
-    lineNumber = 1;
-  }
-  lcd.setCursor(0, lineNumber);
-  lcd.print('>');
+  markWetterLocationOnLcd(absIndoor, absOutdoor);
   
   float absHumidityDiff = absIndoor - absOutdoor;
-  Serial.print("Abs humidity diff ");
-  Serial.println(absHumidityDiff);
-  
-  if ((absHumidityDiff > MIN_ABS_HUMIDITY_DIFF) &&
-      (indoorClimate.temperature > MIN_INDOOR_TEMPERATURE) &&
-      (indoorClimate.relativeHumidity >= MAX_ACCEPTABLE_REL_INDOOR_HUMIDITY)){
-    Serial.println("Turn fan on");
-  }
-    
+  determineFanStatus(absHumidityDiff, indoorClimate);
+  displayFanStatusOnLcd();
+  sendPowerOnOrOffSignal();
   
   delay(MEASURE_INTERVAL_MS);
 }
@@ -237,6 +226,36 @@ void formatSensorDataAsJson(struct SensorData climate, String &jsonString) {
   jsonString += "\",\"humidity\":\"";
   jsonString += dtostrf(climate.relativeHumidity, 4, 2, buffer);
   jsonString += "\"}";
+}
+
+void markWetterLocationOnLcd(float absIndoor, float absOutdoor) {
+  int lineNumber;
+  if (absIndoor > absOutdoor) {
+    lineNumber = 0;
+  } else {
+    lineNumber = 1;
+  }
+  lcd.setCursor(0, lineNumber);
+  lcd.print('>');
+}
+
+void determineFanStatus(float absHumidityDiff, struct SensorData &indoorClimate) {
+  fanIsOn = ((absHumidityDiff > MIN_ABS_HUMIDITY_DIFF) &&
+      (indoorClimate.temperature > MIN_INDOOR_TEMPERATURE) &&
+      (indoorClimate.relativeHumidity >= MAX_ACCEPTABLE_REL_INDOOR_HUMIDITY));
+}
+
+void displayFanStatusOnLcd() {
+  lcd.setCursor(21, 0);
+  if (fanIsOn) {
+    lcd.print(" ON");
+  } else {
+    lcd.print("OFF");
+  }
+}
+
+void sendPowerOnOrOffSignal() {
+  // TODO
 }
 
 const float molecularWeightOfWaterVapor = 18.016;
