@@ -3,6 +3,7 @@
 #include <Ethernet.h>
 #include "RestClient.h"
 #include <LiquidCrystal.h>
+#include <RCSwitch.h>
 
 // =============================
 // Configuration
@@ -12,8 +13,12 @@
 #define MIN_INDOOR_TEMPERATURE 18
 #define MAX_ACCEPTABLE_REL_INDOOR_HUMIDITY 63
 
-#define SENSOR_PIN 3
-#define SENSOR_TYPE DHT22
+#define CLIMATE_SENSOR_PIN 3
+#define CLIMATE_SENSOR_TYPE DHT22
+
+#define SENDER_PIN 0
+#define SENDER_GROUP 1 // A=1, B=2, C=3, D=4
+#define SENDER_DEVICE 3 // [1-3]
 
 #define SERVER_IP "192.168.1.4"
 #define SERVER_PORT 80
@@ -55,8 +60,9 @@ struct SensorData {
 
 boolean fanIsOn = false;
 
-DHT dht(SENSOR_PIN, SENSOR_TYPE);
+DHT dht(CLIMATE_SENSOR_PIN, CLIMATE_SENSOR_TYPE);
 RestClient restClient = RestClient(SERVER_IP, SERVER_PORT);
+RCSwitch mySwitch = RCSwitch();
 
 void setup() {
   Serial.begin(9600);
@@ -66,6 +72,8 @@ void setup() {
   
   lcd.setCursor(0, 0);
   lcd.print("Booting...");
+  
+  mySwitch.enableTransmit(SENDER_PIN);
   
   getIPViaDHCP();
 }
@@ -96,7 +104,7 @@ void loop() {
   
   if (getOutdoorClimate(outdoorClimate) != SUCCESSFUL) { return delay(ERROR_WAIT_TIME_MS); }
   displayClimateOnLCD(outdoorClimate, 1, "Out");
-  //if (sendToServer(indoorClimate) != SUCCESSFUL) { return delay(ERROR_WAIT_TIME_MS); }
+  if (sendToServer(indoorClimate) != SUCCESSFUL) { return delay(ERROR_WAIT_TIME_MS); }
   
   float absIndoor = calculateAbsoluteHumidity(indoorClimate.temperature, indoorClimate.relativeHumidity);
   float absOutdoor = calculateAbsoluteHumidity(outdoorClimate.temperature, outdoorClimate.relativeHumidity);
@@ -255,7 +263,11 @@ void displayFanStatusOnLcd() {
 }
 
 void sendPowerOnOrOffSignal() {
-  // TODO
+  if (fanIsOn) {
+    mySwitch.switchOn('a', SENDER_GROUP, SENDER_DEVICE);
+  } else {
+    mySwitch.switchOff('a', SENDER_GROUP, SENDER_DEVICE);
+  }
 }
 
 const float molecularWeightOfWaterVapor = 18.016;
