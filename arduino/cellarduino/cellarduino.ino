@@ -16,13 +16,13 @@
 #define SENSOR_TYPE DHT22
 
 #define SERVER_IP "192.168.1.4"
-/*#define SERVER_PORT 80
+#define SERVER_PORT 80
 #define SERVER_PUT_URL_PATH "/landing/api/sensors/indoor/data"
-#define SERVER_OUTDOOR_URL_PATH "/landing/api/sensors/openweathermap/latest"*/
+#define SERVER_OUTDOOR_URL_PATH "/landing/api/sensors/openweathermap/latest"
 
-#define SERVER_PORT 3001
+/*#define SERVER_PORT 3001
 #define SERVER_PUT_URL_PATH "/sensors/indoor/data"
-#define SERVER_OUTDOOR_URL_PATH "/sensors/openweathermap/latest"
+#define SERVER_OUTDOOR_URL_PATH "/sensors/openweathermap/latest"*/
 
 #define SERVER_SUCCESSFUL_PUT_HTTP_CODE 204
 #define SERVER_SUCCESSFUL_GET_HTTP_CODE 200

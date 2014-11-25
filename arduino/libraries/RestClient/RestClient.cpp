@@ -183,13 +183,7 @@ int RestClient::readResponse(String* response) {
 
   HTTP_DEBUG_PRINT("HTTP: RESPONSE: \n");
   while (client.connected()) {
-    HTTP_DEBUG_PRINT(".");
-	
-	if (!client.available()) {
-        HTTP_DEBUG_PRINT("HTTP: client no longer available\n");
-		return code;
-	}
-	
+    HTTP_DEBUG_PRINT(".");	
     if (client.available()) {
       HTTP_DEBUG_PRINT(",");
 
