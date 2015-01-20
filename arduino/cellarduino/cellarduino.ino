@@ -3,7 +3,7 @@
 #include <Ethernet.h>
 #include "RestClient.h"
 #include <LiquidCrystal.h>
-#include <RCSwitch.h>
+#include <Servo.h> 
 
 // =============================
 // Configuration
@@ -11,14 +11,11 @@
 
 #define MIN_ABS_HUMIDITY_DIFF 2
 #define MIN_INDOOR_TEMPERATURE 16
-#define MAX_ACCEPTABLE_REL_INDOOR_HUMIDITY 65
 
-#define CLIMATE_SENSOR_PIN 3
+#define CLIMATE_SENSOR_PIN 2
 #define CLIMATE_SENSOR_TYPE DHT22
 
-#define SENDER_PIN 2
-#define SENDER_GROUP 1 // A=1, B=2, C=3, D=4
-#define SENDER_DEVICE 3 // [1-3]
+#define SERVO_PIN 3
 
 #define SERVER_IP "192.168.1.4"
 #define SERVER_PORT 80
@@ -26,8 +23,8 @@
 #define SERVER_OUTDOOR_URL_PATH "/landing/api/sensors/openweathermap/latest"
 
 /*#define SERVER_PORT 3001
-#define SERVER_PUT_URL_PATH "/sensors/indoor/data"
-#define SERVER_OUTDOOR_URL_PATH "/sensors/openweathermap/latest"*/
+ #define SERVER_PUT_URL_PATH "/sensors/indoor/data"
+ #define SERVER_OUTDOOR_URL_PATH "/sensors/openweathermap/latest"*/
 
 #define SERVER_SUCCESSFUL_PUT_HTTP_CODE 204
 #define SERVER_SUCCESSFUL_GET_HTTP_CODE 200
@@ -35,9 +32,12 @@
 // 300000ms = 5 minutes
 #define MEASURE_INTERVAL_MS 300000
 
-byte mac[] = { 0x00, 0xAA, 0xBB, 0xCC, 0xDE, 0x03 };
+byte mac[] = { 
+  0x00, 0xAA, 0xBB, 0xCC, 0xDE, 0x03 };
 
 LiquidCrystal lcd(9, 8, 7, 6, 5, 4);
+
+Servo servo;  
 
 // =============================
 // Constants
@@ -58,37 +58,35 @@ struct SensorData {
   float relativeHumidity;
 };
 
-boolean fanIsOn = false;
+boolean flapIsOpen = false;
+int servoPosition = 0;
 
 DHT dht(CLIMATE_SENSOR_PIN, CLIMATE_SENSOR_TYPE);
 RestClient restClient = RestClient(SERVER_IP, SERVER_PORT);
-RCSwitch mySwitch = RCSwitch();
 
 void setup() {
   Serial.begin(9600);
-  Serial.println("Booting...");
+  Serial.println(F("Booting..."));
   dht.begin();
   lcd.begin(24, 2);
-  
+
   lcd.setCursor(0, 0);
-  lcd.print("Booting...");
-  
-  mySwitch.enableTransmit(SENDER_PIN);
-  
+  lcd.print(F("Booting..."));
+
   getIPViaDHCP();
 }
 
 void getIPViaDHCP() {
-  Serial.print("Trying to get an IP via DHCP... ");
-  
+  Serial.print(F("Trying to get an IP via DHCP... "));
+
   while (Ethernet.begin(mac) == 0) {
-    Serial.println("FAILED");
-    Serial.println("Trying again in 10 seconds...");
+    Serial.println(F("FAILED"));
+    Serial.println(F("Trying again in 10 seconds..."));
     delay(10000);
   }
-  
+
   Serial.println(Ethernet.localIP());
-  
+
   lcd.setCursor(0, 0);
   lcd.print(Ethernet.localIP());
   delay(1000);
@@ -98,83 +96,89 @@ void loop() {
   SensorData indoorClimate, outdoorClimate;
 
   clearLcd();
-  
-  if (measureIndoorClimate(indoorClimate) != SUCCESSFUL) { return delay(ERROR_WAIT_TIME_MS); }
+
+  if (measureIndoorClimate(indoorClimate) != SUCCESSFUL) { 
+    return delay(ERROR_WAIT_TIME_MS); 
+  }
   displayClimateOnLCD(indoorClimate, 0, "In ");
-  
-  if (getOutdoorClimate(outdoorClimate) != SUCCESSFUL) { return delay(ERROR_WAIT_TIME_MS); }
+
+  if (getOutdoorClimate(outdoorClimate) != SUCCESSFUL) { 
+    return delay(ERROR_WAIT_TIME_MS); 
+  }
   displayClimateOnLCD(outdoorClimate, 1, "Out");
-  if (sendToServer(indoorClimate) != SUCCESSFUL) { return delay(ERROR_WAIT_TIME_MS); }
-  
+  if (sendToServer(indoorClimate) != SUCCESSFUL) { 
+    return delay(ERROR_WAIT_TIME_MS); 
+  }
+
   float absIndoor = calculateAbsoluteHumidity(indoorClimate.temperature, indoorClimate.relativeHumidity);
   float absOutdoor = calculateAbsoluteHumidity(outdoorClimate.temperature, outdoorClimate.relativeHumidity);
-  
+
   markWetterLocationOnLcd(absIndoor, absOutdoor);
-  
+
   float absHumidityDiff = absIndoor - absOutdoor;
-  determineFanStatus(absHumidityDiff, indoorClimate);
-  displayFanStatusOnLcd();
-  sendPowerOnOrOffSignal();
-  
+  determineFlapStatus(absHumidityDiff, indoorClimate);
+  displayFlapStatusOnLcd();
+  moveFlap();
+
   delay(MEASURE_INTERVAL_MS);
 }
 
 boolean measureIndoorClimate(struct SensorData &climate) {
   climate.relativeHumidity = dht.readHumidity();
   climate.temperature = dht.readTemperature();
-  
+
   if (isnan(climate.relativeHumidity) || isnan(climate.temperature)) {
-    Serial.println("Failed to read from DHT sensor!");
+    Serial.println(F("Failed to read from DHT sensor!"));
     return ERROR;
   }
-  
+
   return SUCCESSFUL;  
 }
 
 boolean getOutdoorClimate(struct SensorData &climate) {
-  Serial.print("GET ");
+  Serial.print(F("GET "));
   Serial.print(SERVER_OUTDOOR_URL_PATH);
-  Serial.print("... ");
+  Serial.print(F("... "));
 
   String serverResponse = "";
   int statusCode = restClient.get(getUrl, &serverResponse);
-  
+
   if (statusCode != SERVER_SUCCESSFUL_GET_HTTP_CODE) {
-    Serial.println("ERROR");
-    Serial.print("Received HTTP status code: ");
+    Serial.println(F("ERROR"));
+    Serial.print(F("Received HTTP status code: "));
     Serial.println(statusCode);
     Serial.println(serverResponse);
     return ERROR;
   }
-  
-  Serial.println("OK");
+
+  Serial.println(F("OK"));
   Serial.println(serverResponse);
-   
+
   // example serverResponse: {"data":[{"timestamp":"2014-10-12 20:50:03","temperature":13.93,"humidity":85}]}
 
   int temperatureValueBegin = serverResponse.indexOf("temperature") + 13;
   int temperatureValueEnd = serverResponse.indexOf(",\"", temperatureValueBegin);
   int humidityValueBegin = serverResponse.indexOf("humidity") + 10;
   int humidityValueEnd = serverResponse.indexOf("}]}", humidityValueBegin);
- 
+
   String temperatureString = serverResponse.substring(temperatureValueBegin, temperatureValueEnd);
   String humidityString = serverResponse.substring(humidityValueBegin, humidityValueEnd);
- 
+
   // String -> charArray conversion
   int str_len = temperatureString.length() + 1; // +1 extra character for the null terminator
   char char_array[str_len];
   temperatureString.toCharArray(char_array, str_len);
-  
+
   float fTemperature = atof(char_array);
   climate.temperature = fTemperature;
-  
+
   // String -> charArray conversion
   str_len = humidityString.length() + 1; // +1 extra character for the null terminator
   humidityString.toCharArray(char_array, str_len);
-  
+
   float fHumidity = atof(char_array);
   climate.relativeHumidity = fHumidity;
-  
+
   return SUCCESSFUL;  
 }
 
@@ -183,7 +187,7 @@ void clearLcd() {
     lcd.setCursor(0, line);
     lcd.print("                        ");
   }
-  
+
   lcd.setCursor(0, 0);
 }
 
@@ -196,7 +200,7 @@ void displayClimateOnLCD(struct SensorData climate, int line, String location) {
   printLine += "C/";
   printLine += dtostrf(climate.relativeHumidity, 3, 1, buffer);
   printLine += '%';
- 
+
   lcd.setCursor(0, line);
   lcd.print(printLine);
 }
@@ -204,24 +208,24 @@ void displayClimateOnLCD(struct SensorData climate, int line, String location) {
 boolean sendToServer(struct SensorData climate) {
   String jsonString;
   formatSensorDataAsJson(climate, jsonString);
-  
+
   // String -> charArray conversion
   int str_len = jsonString.length() + 1; // +1 extra character for the null terminator
   char char_array[str_len];
   jsonString.toCharArray(char_array, str_len);
 
-  Serial.print("PUT ");
+  Serial.print(F("PUT "));
   Serial.print(SERVER_PUT_URL_PATH);
-  Serial.print("... ");
+  Serial.print(F("... "));
 
   restClient.setContentType(CONTENT_TYPE_JSON);
   int statusCode = restClient.put(putUrl, char_array);
-  
+
   if (statusCode != SERVER_SUCCESSFUL_PUT_HTTP_CODE) {
     Serial.println("ERROR");
     return ERROR;
   }
-  
+
   Serial.println("OK");
   return SUCCESSFUL;
 }
@@ -240,34 +244,54 @@ void markWetterLocationOnLcd(float absIndoor, float absOutdoor) {
   int lineNumber;
   if (absIndoor > absOutdoor) {
     lineNumber = 0;
-  } else {
+  } 
+  else {
     lineNumber = 1;
   }
   lcd.setCursor(0, lineNumber);
   lcd.print('>');
 }
 
-void determineFanStatus(float absHumidityDiff, struct SensorData &indoorClimate) {
-  fanIsOn = ((absHumidityDiff > MIN_ABS_HUMIDITY_DIFF) &&
-      (indoorClimate.temperature > MIN_INDOOR_TEMPERATURE) &&
-      (indoorClimate.relativeHumidity >= MAX_ACCEPTABLE_REL_INDOOR_HUMIDITY));
+void determineFlapStatus(float absHumidityDiff, struct SensorData &indoorClimate) {
+  flapIsOpen = (absHumidityDiff > MIN_ABS_HUMIDITY_DIFF) && (indoorClimate.temperature > MIN_INDOOR_TEMPERATURE);
 }
 
-void displayFanStatusOnLcd() {
+void displayFlapStatusOnLcd() {
   lcd.setCursor(21, 0);
-  if (fanIsOn) {
-    lcd.print(" ON");
-  } else {
-    lcd.print("OFF");
+  if (flapIsOpen) {
+    lcd.print(F("AUF"));
+  } 
+  else {
+    lcd.print(F(" ZU"));
   }
 }
 
-void sendPowerOnOrOffSignal() {
-  if (fanIsOn) {
-    mySwitch.switchOn('a', SENDER_GROUP, SENDER_DEVICE);
+void moveFlap() {
+  if (flapIsOpen) {
+    openFlap();
   } else {
-    mySwitch.switchOff('a', SENDER_GROUP, SENDER_DEVICE);
+    closeFlap();
   }
+}
+
+void openFlap() {
+  servo.attach(SERVO_PIN);
+  for(; servoPosition < 180; servoPosition += 2)
+  {
+    servo.write(servoPosition);
+    delay(15);
+  } 
+  servo.detach();
+}
+
+void closeFlap() {
+  servo.attach(SERVO_PIN);
+  for(; servoPosition>=1; servoPosition-=2)
+  {
+    servo.write(servoPosition);
+    delay(15);
+  } 
+  servo.detach();
 }
 
 const float molecularWeightOfWaterVapor = 18.016;
@@ -287,3 +311,4 @@ float calculateAbsoluteHumidity(float temperature, float relativeHumidity) {
   float absoluteHumidity = 100000 * (molecularWeightOfWaterVapor/universalGasConstant) * (currentVaporPressure/temperatureInKelvin);
   return absoluteHumidity;
 }
+
