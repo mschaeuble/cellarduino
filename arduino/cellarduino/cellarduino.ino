@@ -65,8 +65,6 @@ DHT dht(CLIMATE_SENSOR_PIN, CLIMATE_SENSOR_TYPE);
 RestClient restClient = RestClient(SERVER_IP, SERVER_PORT);
 
 void setup() {
-  Serial.begin(9600);
-  Serial.println(F("Booting..."));
   dht.begin();
   lcd.begin(24, 2);
 
@@ -77,15 +75,9 @@ void setup() {
 }
 
 void getIPViaDHCP() {
-  Serial.print(F("Trying to get an IP via DHCP... "));
-
   while (Ethernet.begin(mac) == 0) {
-    Serial.println(F("FAILED"));
-    Serial.println(F("Trying again in 10 seconds..."));
     delay(10000);
   }
-
-  Serial.println(Ethernet.localIP());
 
   lcd.setCursor(0, 0);
   lcd.print(Ethernet.localIP());
@@ -106,6 +98,7 @@ void loop() {
     return delay(ERROR_WAIT_TIME_MS); 
   }
   displayClimateOnLCD(outdoorClimate, 1, "Out");
+  
   if (sendToServer(indoorClimate) != SUCCESSFUL) { 
     return delay(ERROR_WAIT_TIME_MS); 
   }
@@ -128,7 +121,6 @@ boolean measureIndoorClimate(struct SensorData &climate) {
   climate.temperature = dht.readTemperature();
 
   if (isnan(climate.relativeHumidity) || isnan(climate.temperature)) {
-    Serial.println(F("Failed to read from DHT sensor!"));
     return ERROR;
   }
 
@@ -136,26 +128,14 @@ boolean measureIndoorClimate(struct SensorData &climate) {
 }
 
 boolean getOutdoorClimate(struct SensorData &climate) {
-  Serial.print(F("GET "));
-  Serial.print(SERVER_OUTDOOR_URL_PATH);
-  Serial.print(F("... "));
-
   String serverResponse = "";
   int statusCode = restClient.get(getUrl, &serverResponse);
 
   if (statusCode != SERVER_SUCCESSFUL_GET_HTTP_CODE) {
-    Serial.println(F("ERROR"));
-    Serial.print(F("Received HTTP status code: "));
-    Serial.println(statusCode);
-    Serial.println(serverResponse);
     return ERROR;
   }
 
-  Serial.println(F("OK"));
-  Serial.println(serverResponse);
-
   // example serverResponse: {"data":[{"timestamp":"2014-10-12 20:50:03","temperature":13.93,"humidity":85}]}
-
   int temperatureValueBegin = serverResponse.indexOf("temperature") + 13;
   int temperatureValueEnd = serverResponse.indexOf(",\"", temperatureValueBegin);
   int humidityValueBegin = serverResponse.indexOf("humidity") + 10;
@@ -185,59 +165,63 @@ boolean getOutdoorClimate(struct SensorData &climate) {
 void clearLcd() {
   for (int line=0; line<2; line++) {
     lcd.setCursor(0, line);
-    lcd.print("                        ");
+    lcd.print(F("                        "));
   }
 
   lcd.setCursor(0, 0);
 }
 
-void displayClimateOnLCD(struct SensorData climate, int line, String location) {
-  char buffer[5]; // buffer for temp incl. decimal point & possible minus sign
+const char degreeSymbol[] = {223,'C',0};
 
-  String printLine = " " + location + ": ";
-  printLine += dtostrf(climate.temperature, 3, 1, buffer);
-  printLine += (char)223; // degree sign
-  printLine += "C/";
-  printLine += dtostrf(climate.relativeHumidity, 3, 1, buffer);
-  printLine += '%';
+void displayClimateOnLCD(struct SensorData climate, int line, char* location) {
+  char buffer[5]; // buffer for temp/humidity incl. decimal point & possible minus sign
+  
+  char printLine[18] = " ";
+  strcat(printLine, location);
+  strcat(printLine, ": "); 
+  
+  dtostrf(climate.temperature, 4, 1, buffer); // 4=minimum width, 1=precision
+  strcat(printLine, buffer);
+  strcat(printLine, degreeSymbol);
+  
+  strcat(printLine, "/");
+  
+  dtostrf(climate.relativeHumidity, 3, 1, buffer);
+  strcat(printLine, buffer);
+  strcat(printLine, "%");
 
   lcd.setCursor(0, line);
   lcd.print(printLine);
 }
 
 boolean sendToServer(struct SensorData climate) {
-  String jsonString;
-  formatSensorDataAsJson(climate, jsonString);
-
-  // String -> charArray conversion
-  int str_len = jsonString.length() + 1; // +1 extra character for the null terminator
-  char char_array[str_len];
-  jsonString.toCharArray(char_array, str_len);
-
-  Serial.print(F("PUT "));
-  Serial.print(SERVER_PUT_URL_PATH);
-  Serial.print(F("... "));
+  char jsonString[43] = {};  
+  fillWithSensorData(climate, jsonString);
 
   restClient.setContentType(CONTENT_TYPE_JSON);
-  int statusCode = restClient.put(putUrl, char_array);
+  int statusCode = restClient.put(putUrl, jsonString);
 
   if (statusCode != SERVER_SUCCESSFUL_PUT_HTTP_CODE) {
-    Serial.println("ERROR");
     return ERROR;
   }
 
-  Serial.println("OK");
   return SUCCESSFUL;
 }
 
-void formatSensorDataAsJson(struct SensorData climate, String &jsonString) {
-  char buffer[5]; // buffer for temp incl. decimal point & possible minus sign
+void fillWithSensorData(struct SensorData climate, char *jsonString) {
+  char buffer[5]; // buffer for temp/humidity incl. decimal point & possible minus sign
+  
+  // temperature
+  strcat(jsonString, "{\"temperature\":\"");
+  dtostrf(climate.temperature, 1, 1, buffer); // min width: 1 characters, 1 decimal 
+  strcat(jsonString, buffer); 
 
-  jsonString = "{\"temperature\":\"";
-  jsonString += dtostrf(climate.temperature, 3, 1, buffer);
-  jsonString += "\",\"humidity\":\"";
-  jsonString += dtostrf(climate.relativeHumidity, 4, 2, buffer);
-  jsonString += "\"}";
+  // humidity  
+  strcat(jsonString, "\",\"humidity\":\"");  
+  dtostrf(climate.relativeHumidity, 1, 1, buffer);
+  strcat(jsonString, buffer); 
+  
+  strcat(jsonString, "\"}");
 }
 
 void markWetterLocationOnLcd(float absIndoor, float absOutdoor) {
@@ -286,7 +270,7 @@ void openFlap() {
 
 void closeFlap() {
   servo.attach(SERVO_PIN);
-  for(; servoPosition>=1; servoPosition-=2)
+  for(; servoPosition>=40; servoPosition-=2)
   {
     servo.write(servoPosition);
     delay(15);
