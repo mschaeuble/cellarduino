@@ -6,6 +6,7 @@ var server = restify.createServer({
 });
 
 server.use(restify.bodyParser());
+server.use(restify.queryParser());
 server.pre(restify.pre.userAgentConnection());
 
 server.get('/sensors/:sensorid/data', getSensorData);
@@ -29,11 +30,20 @@ function getSensorData(req, res, next) {
 }
 
 function getLatestSensorData(req, res, next) {
-  console.log('getLatestSensorData [sensorid=%s]', req.params.sensorid);
+  console.log('getLatestSensorData [sensorid=%s, format=%s]', req.params.sensorid, req.params.format);
 
   dbrepository.getLatestSensorData(req.params.sensorid, function(row) {
-    var output = transformToJson([row])
-    res.json(200, output);
+    if (req.params.format == "arduino") {
+      var output = [row][0].temperature + ";" + [row][0].humidity;
+      res.writeHead(200, {
+	  'Content-Length': Buffer.byteLength(output),
+	  'Content-Type': 'text/plain'
+      });
+      res.write(output);
+    } else {
+      var output = transformToJson([row])
+      res.json(200, output);
+    }
     next();
   });
 }
