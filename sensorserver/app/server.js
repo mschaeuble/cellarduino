@@ -22,7 +22,12 @@ function getSensorData(req, res, next) {
   console.log('getSensorData [sensorid=%s]', req.params.sensorid);
 
   dbrepository.getSensorData(req.params.sensorid, function(rows) {
-    var output = transformToJson(rows); 
+    var output;
+    if (rows.length > 0) {
+      output = transformToJson(rows);
+    } else {
+      output = "{}";
+    }
     res.json(200, output);
     next();
   });
@@ -33,16 +38,20 @@ function getLatestSensorData(req, res, next) {
   console.log('getLatestSensorData [sensorid=%s, format=%s]', req.params.sensorid, req.params.format);
 
   dbrepository.getLatestSensorData(req.params.sensorid, function(row) {
-    if (req.params.format == "arduino") {
-      var output = "T" + [row][0].temperature + ";H" + [row][0].humidity;
-      res.writeHead(200, {
-	  'Content-Length': Buffer.byteLength(output),
-	  'Content-Type': 'text/plain'
-      });
-      res.write(output);
+    if (row == undefined) {
+      res.json(200, "{}");
     } else {
-      var output = transformToJson([row])
-      res.json(200, output);
+      if (req.params.format == "arduino") {
+        var output = "T" + [row][0].temperature + ";H" + [row][0].humidity;
+        res.writeHead(200, {
+          'Content-Length': Buffer.byteLength(output),
+          'Content-Type': 'text/plain'
+        });
+        res.write(output);
+      } else {
+        var output = transformToJson([row])
+        res.json(200, output);
+      }
     }
     next();
   });
