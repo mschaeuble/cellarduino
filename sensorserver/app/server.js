@@ -67,7 +67,18 @@ function putSensorData(req, res, next) {
 
   var roundedTemperature = (req.body.temperature).toFixed(1);
   var roundedHumidity = (req.body.humidity).toFixed(1);
-  dbrepository.saveSensorData(req.params.sensorid, roundedTemperature, roundedHumidity);
+
+  dbrepository.getLimitedLatestSensorData(req.params.sensorid, 2, function(rows) {
+    // Optimization: If latest two records in the database are identical with the current
+    // measurement, replace latest from db with latest measurement
+    if (rows.length == 2 &&
+        rows[0].temperature == rows[1].temperature && rows[1].temperature == roundedTemperature &&
+	rows[0].humidity == rows[1].humidity && rows[1].humidity == roundedHumidity) {
+       dbrepository.deleteSensorData(rows[0].id);
+    }
+    
+    dbrepository.saveSensorData(req.params.sensorid, roundedTemperature, roundedHumidity);
+  });
 
   res.send(204);
   next();
