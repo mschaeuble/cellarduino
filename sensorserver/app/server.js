@@ -34,7 +34,7 @@ function getLatestSensorData(req, res, next) {
 
   dbrepository.getLatestSensorData(req.params.sensorid, function(row) {
     if (req.params.format == "arduino") {
-      var output = [row][0].temperature + ";" + [row][0].humidity;
+      var output = "T" + [row][0].temperature + ";H" + [row][0].humidity;
       res.writeHead(200, {
 	  'Content-Length': Buffer.byteLength(output),
 	  'Content-Type': 'text/plain'
@@ -64,8 +64,10 @@ function transformToJson(rows) {
 
 function putSensorData(req, res, next) {
   console.log('putSensorData [sensorid=%s]', req.params.sensorid);
- 
-  dbrepository.saveSensorData(req.params.sensorid, req.body.temperature, req.body.humidity);
+
+  var roundedTemperature = (req.body.temperature).toFixed(1);
+  var roundedHumidity = (req.body.humidity).toFixed(1);
+  dbrepository.saveSensorData(req.params.sensorid, roundedTemperature, roundedHumidity);
 
   res.send(204);
   next();
