@@ -1,7 +1,6 @@
 #include <DHT.h>
 #include <SPI.h>
 #include <Ethernet.h>
-#include "RestClient.h"
 #include <LiquidCrystal.h>
 #include <Servo.h> 
 
@@ -20,14 +19,11 @@
 #define SERVER_IP "192.168.1.4"
 #define SERVER_PORT 80
 #define SERVER_PUT_URL_PATH "/landing/api/sensors/indoor/data"
-#define SERVER_OUTDOOR_URL_PATH "/landing/api/sensors/openweathermap/latest"
+#define SERVER_OUTDOOR_URL_PATH "/landing/api/sensors/openweathermap/latest?format=arduino"
 
 /*#define SERVER_PORT 3001
  #define SERVER_PUT_URL_PATH "/sensors/indoor/data"
  #define SERVER_OUTDOOR_URL_PATH "/sensors/openweathermap/latest"*/
-
-#define SERVER_SUCCESSFUL_PUT_HTTP_CODE 204
-#define SERVER_SUCCESSFUL_GET_HTTP_CODE 200
 
 // 300000ms = 5 minutes
 #define MEASURE_INTERVAL_MS 300000
@@ -45,8 +41,6 @@ Servo servo;
 boolean SUCCESSFUL = true;
 boolean ERROR = false;
 
-char putUrl[] = SERVER_PUT_URL_PATH;
-char getUrl[] = SERVER_OUTDOOR_URL_PATH;
 #define CONTENT_TYPE_JSON "application/json"
 #define ERROR_WAIT_TIME_MS 10000
 
@@ -62,7 +56,7 @@ boolean flapIsOpen = false;
 int servoPosition = 0;
 
 DHT dht(CLIMATE_SENSOR_PIN, CLIMATE_SENSOR_TYPE);
-RestClient restClient = RestClient(SERVER_IP, SERVER_PORT);
+EthernetClient client;
 
 void setup() {
   dht.begin();
@@ -70,6 +64,8 @@ void setup() {
 
   lcd.setCursor(0, 0);
   lcd.print(F("Booting..."));
+  
+  Serial.begin(9600);
 
   getIPViaDHCP();
 }
@@ -128,38 +124,111 @@ boolean measureIndoorClimate(struct SensorData &climate) {
 }
 
 boolean getOutdoorClimate(struct SensorData &climate) {
-  String serverResponse = "";
-  int statusCode = restClient.get(getUrl, &serverResponse);
-
-  if (statusCode != SERVER_SUCCESSFUL_GET_HTTP_CODE) {
+  if (client.connect(SERVER_IP, SERVER_PORT)) {
+    client.print(F("GET "));
+    client.print(SERVER_OUTDOOR_URL_PATH);
+    client.println(F(" HTTP/1.1"));
+    
+    client.print(F("Host: "));
+    client.println(SERVER_IP);
+    
+    client.println(F("Connection: close"));
+    client.println();
+    
+    delay(1000);
+  } 
+  else {
+    Serial.println(F("connection failed"));
     return ERROR;
   }
-
-  // example serverResponse: {"data":[{"timestamp":"2014-10-12 20:50:03","temperature":13.93,"humidity":85}]}
-  int temperatureValueBegin = serverResponse.indexOf("temperature") + 13;
-  int temperatureValueEnd = serverResponse.indexOf(",\"", temperatureValueBegin);
-  int humidityValueBegin = serverResponse.indexOf("humidity") + 10;
-  int humidityValueEnd = serverResponse.indexOf("}]}", humidityValueBegin);
-
-  String temperatureString = serverResponse.substring(temperatureValueBegin, temperatureValueEnd);
-  String humidityString = serverResponse.substring(humidityValueBegin, humidityValueEnd);
-
-  // String -> charArray conversion
-  int str_len = temperatureString.length() + 1; // +1 extra character for the null terminator
-  char char_array[str_len];
-  temperatureString.toCharArray(char_array, str_len);
-
-  float fTemperature = atof(char_array);
-  climate.temperature = fTemperature;
-
-  // String -> charArray conversion
-  str_len = humidityString.length() + 1; // +1 extra character for the null terminator
-  humidityString.toCharArray(char_array, str_len);
-
-  float fHumidity = atof(char_array);
-  climate.relativeHumidity = fHumidity;
+  
+  char body[20]; 
+  readBody(body, client);
+  
+  client.stop();
+  
+  parseServerAnswer(body, climate);
 
   return SUCCESSFUL;  
+}
+
+void readBody(char* body, EthernetClient client) {
+  int i = 0;
+  boolean httpBody = false;
+  boolean currentLineIsBlank = false;
+              
+  while(client.connected() && client.available()) {
+      char c = client.read();
+      
+      if(httpBody){
+        if (i < 19) {
+          body[i] = c;
+          i++;
+        } else {
+          client.stop();  
+        }
+      } else {
+        if (c == '\n' && currentLineIsBlank) {
+          httpBody = true;
+        }
+
+        if (c == '\n') {
+          // you're starting a new line
+          currentLineIsBlank = true;
+        } else if (c != '\r') {
+          // you've gotten a character on the current line
+          currentLineIsBlank = false;
+        }
+      }
+  }
+
+  body[i] = '\0';
+}
+
+void parseServerAnswer(char* body, struct SensorData &climate) {
+  // example body: T0.2;H78
+  char temperatureCharArray[6] = {};
+  char humidityCharArray[6] = {};
+  
+  boolean inTemperature = false;
+  boolean inHumidity = false;
+  
+  int i = 0;
+  for (int index = 0; index < strlen(body); index++) {
+    char c = body[index];
+
+    if (c == 'T') { // beginn of temperature
+      i = 0;
+      inTemperature = true;
+      continue;
+    }
+      
+    if (c == ';') {
+      inTemperature = false;
+      inHumidity = false;
+      continue;
+    }
+      
+    if (c == 'H') { // beginn of humidity
+      i = 0;
+      inHumidity = true;
+      continue;
+    }
+      
+    if (inTemperature && i < 5) {
+      temperatureCharArray[i] = c;
+      temperatureCharArray[i+1] = '\0';
+      i++;
+    }
+    if (inHumidity && i < 5) {
+      humidityCharArray[i] = c;
+      humidityCharArray[i+1] = '\0';
+      i++;
+    }
+  }
+ 
+  climate.temperature = atof(temperatureCharArray);
+  climate.relativeHumidity = atof(humidityCharArray);
 }
 
 void clearLcd() {
@@ -195,33 +264,54 @@ void displayClimateOnLCD(struct SensorData climate, int line, char* location) {
 }
 
 boolean sendToServer(struct SensorData climate) {
-  char jsonString[43] = {};  
+  char jsonString[39] = {};  
   fillWithSensorData(climate, jsonString);
+   
+  if (client.connect(SERVER_IP, SERVER_PORT)) {
+    client.print(F("PUT "));
+    client.print(SERVER_PUT_URL_PATH);
+    client.println(F(" HTTP/1.1"));
+    
+    client.print(F("Host: "));
+    client.println(SERVER_IP);
+    
+    client.print(F("Content-Type: "));
+    client.println(CONTENT_TYPE_JSON);
+    
+    client.print(F("Content-length: "));
+    client.println(strlen(jsonString));
+    
+    client.println(F("Connection: close"));
+    client.println();
+    client.println(jsonString);
 
-  restClient.setContentType(CONTENT_TYPE_JSON);
-  int statusCode = restClient.put(putUrl, jsonString);
+    delay(1000);
+    client.stop();
 
-  if (statusCode != SERVER_SUCCESSFUL_PUT_HTTP_CODE) {
+    return SUCCESSFUL;
+  } 
+  else {
+    Serial.println(F("connection failed"));
     return ERROR;
   }
 
-  return SUCCESSFUL;
+  
 }
 
 void fillWithSensorData(struct SensorData climate, char *jsonString) {
   char buffer[5]; // buffer for temp/humidity incl. decimal point & possible minus sign
   
   // temperature
-  strcat(jsonString, "{\"temperature\":\"");
+  strcat(jsonString, "{\"temperature\":");
   dtostrf(climate.temperature, 1, 1, buffer); // min width: 1 characters, 1 decimal 
   strcat(jsonString, buffer); 
 
   // humidity  
-  strcat(jsonString, "\",\"humidity\":\"");  
+  strcat(jsonString, ",\"humidity\":");  
   dtostrf(climate.relativeHumidity, 1, 1, buffer);
   strcat(jsonString, buffer); 
   
-  strcat(jsonString, "\"}");
+  strcat(jsonString, "}");
 }
 
 void markWetterLocationOnLcd(float absIndoor, float absOutdoor) {
