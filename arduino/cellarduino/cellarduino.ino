@@ -53,12 +53,18 @@ struct SensorData {
 };
 
 boolean flapIsOpen = false;
-int servoPosition = 0;
+int servoPosition = 90;
 
 DHT dht(CLIMATE_SENSOR_PIN, CLIMATE_SENSOR_TYPE);
 EthernetClient client;
 
 void setup() {
+  closeFlap();
+  delay(1000);
+  openFlap();  
+  delay(1000);
+  closeFlap();
+  
   dht.begin();
   lcd.begin(24, 2);
 
@@ -350,7 +356,7 @@ void moveFlap() {
 
 void openFlap() {
   servo.attach(SERVO_PIN);
-  for(; servoPosition < 180; servoPosition += 2)
+  for(; servoPosition < 155; servoPosition += 1)
   {
     servo.write(servoPosition);
     delay(15);
@@ -360,7 +366,7 @@ void openFlap() {
 
 void closeFlap() {
   servo.attach(SERVO_PIN);
-  for(; servoPosition>=40; servoPosition-=2)
+  for(; servoPosition>=60; servoPosition-=1)
   {
     servo.write(servoPosition);
     delay(15);
