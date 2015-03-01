@@ -9,8 +9,7 @@
 // =============================
 
 #define MIN_ABS_HUMIDITY_DIFF 1
-#define MIN_INDOOR_TEMPERATURE 15
-#define MAX_TOLERATED_INDOOR_HUMIDITY 58
+#define MIN_INDOOR_HUMIDITY 45
 
 #define CLIMATE_SENSOR_PIN 2
 #define CLIMATE_SENSOR_TYPE DHT22
@@ -334,8 +333,7 @@ void markWetterLocationOnLcd(float absIndoor, float absOutdoor) {
 }
 
 void determineFlapStatus(float absHumidityDiff, struct SensorData &indoorClimate) { 
-  flapIsOpen = ((absHumidityDiff > MIN_ABS_HUMIDITY_DIFF) && (indoorClimate.temperature > MIN_INDOOR_TEMPERATURE)) 
-    || ((absHumidityDiff > MIN_ABS_HUMIDITY_DIFF) && (indoorClimate.temperature <= MIN_INDOOR_TEMPERATURE) && (indoorClimate.relativeHumidity > MAX_TOLERATED_INDOOR_HUMIDITY)); // case: don't respect min indoor temperature when its too wet indoors
+  flapIsOpen = ((absHumidityDiff > MIN_ABS_HUMIDITY_DIFF) && (indoorClimate.relativeHumidity > MIN_INDOOR_HUMIDITY));
 }
 
 void displayFlapStatusOnLcd() {
