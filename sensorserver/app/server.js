@@ -13,6 +13,8 @@ server.get('/sensors/:sensorid/data', getSensorData);
 server.get('/sensors/:sensorid/latest', getLatestSensorData);
 server.put('/sensors/:sensorid/data', putSensorData);
 
+server.get('/events', getEvents);
+
 server.listen(3001, function() {
   console.log('%s listening at %s', server.name, server.url);
 });
@@ -92,3 +94,41 @@ function putSensorData(req, res, next) {
   res.send(204);
   next();
 }
+
+function getEvents(req, res, next) {
+  console.log('getEvents [eventTypes=%s]', eventTypes);
+  
+  if (!req.params.eventTypes) {
+    res.json(200, "Please provide an 'eventTypes' parameter");
+    next();
+    return;  
+  }
+
+  var eventTypes = req.params.eventTypes.split(",");
+
+  dbrepository.getEvents(eventTypes, function(rows) {
+    var output;
+    if (rows.length > 0) {
+      output = transformEventsToJson(rows);
+    } else {
+      output = "{}";
+    }
+    res.json(200, output);
+    next();
+  });
+}
+
+function transformEventsToJson(rows) {
+  var data = [];
+
+  rows.forEach(function(row) {
+    data.push({
+      "timestamp": row.timestamp,
+      "eventType": row.event_type
+    });
+  });
+
+  return data;
+}
+
+

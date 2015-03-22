@@ -1,0 +1,13 @@
+Frontend
+http://freeax.no-ip.biz/~michele/sensorserver/
+
+Server API
+PUT /sensors/SENSORID/data
+GET /sensors/SENSORID/data
+GET /events?eventTypes=A,B,C
+
+Lighttpd Proxy
+/landing/api/sensors/... -> localhost:3001/sensors/...
+
+Systemd configuration
+/etc/systemd/system/sensorserver.service

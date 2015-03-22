@@ -33,6 +33,19 @@ exports.saveSensorData = function(sensorId, temperature, humidity) {
   console.log("  persisted: %s, %s, %s", sensorId, temperature, humidity);
 }
 
+exports.getEvents = function(eventTypes, callback) {
+  var params = [];
+  for (var i = 1; i <= eventTypes.length; i++) {
+    params.push('$'+i);
+  }
+
+  var selectStmt = db.prepare("SELECT * FROM events WHERE event_type in (" + params.join(",") + ") ORDER BY timestamp");
+  selectStmt.all(eventTypes, function(err, rows) {
+    console.log("  returning %d row(s)", rows.length);
+    callback(rows);
+  });
+}
+
 exports.deleteSensorData = function(recordId) {
   console.log("  deleting record with id %s", recordId);
   var deleteStmt = db.prepare("DELETE FROM data WHERE id = ?");
