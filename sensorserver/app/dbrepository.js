@@ -7,7 +7,7 @@ exports.getSensorData = function(sensorId, callback) {
     console.log("  returning %d row(s)", rows.length);
     callback(rows);
   });  
-}
+};
 
 exports.getLatestSensorData = function(sensorId, callback) {
   var selectStmt = db.prepare("SELECT * FROM data WHERE sensor_id = ? ORDER BY timestamp desc LIMIT 1");
@@ -15,7 +15,7 @@ exports.getLatestSensorData = function(sensorId, callback) {
     console.log("  returned: %j", row);
     callback(row);
   });  
-}
+};
 
 exports.getLimitedLatestSensorData = function(sensorId, limit, callback) {
   var selectStmt = db.prepare("SELECT * FROM data WHERE sensor_id = ? ORDER BY timestamp desc LIMIT ?");
@@ -23,7 +23,7 @@ exports.getLimitedLatestSensorData = function(sensorId, limit, callback) {
     console.log("  returning: %d", rows.length);
     callback(rows);
   });  
-}
+};
 
 exports.saveSensorData = function(sensorId, temperature, humidity) {
   var insertStmt = db.prepare("INSERT INTO data(sensor_id, temperature, humidity) VALUES (?,?,?)");
@@ -31,7 +31,7 @@ exports.saveSensorData = function(sensorId, temperature, humidity) {
   insertStmt.finalize();  
 
   console.log("  persisted: %s, %s, %s", sensorId, temperature, humidity);
-}
+};
 
 exports.getEvents = function(eventTypes, callback) {
   var params = [];
@@ -44,11 +44,19 @@ exports.getEvents = function(eventTypes, callback) {
     console.log("  returning %d row(s)", rows.length);
     callback(rows);
   });
-}
+};
+
+exports.saveEvent = function(eventType) {
+  var insertStmt = db.prepare("INSERT INTO events(event_type) VALUES (?)");
+  insertStmt.run(eventType);
+  insertStmt.finalize();  
+
+  console.log("  persisted: %s", eventType);
+};
 
 exports.deleteSensorData = function(recordId) {
   console.log("  deleting record with id %s", recordId);
   var deleteStmt = db.prepare("DELETE FROM data WHERE id = ?");
   deleteStmt.run(recordId);
   deleteStmt.finalize();
-}
+};

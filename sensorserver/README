@@ -5,6 +5,7 @@ Server API
 PUT /sensors/SENSORID/data
 GET /sensors/SENSORID/data
 GET /events?eventTypes=A,B,C
+PUT /events (body: {"eventType":"TEST"} )
 
 Lighttpd Proxy
 /landing/api/sensors/... -> localhost:3001/sensors/...

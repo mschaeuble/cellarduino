@@ -14,6 +14,7 @@ server.get('/sensors/:sensorid/latest', getLatestSensorData);
 server.put('/sensors/:sensorid/data', putSensorData);
 
 server.get('/events', getEvents);
+server.put('/events', putEvent);
 
 server.listen(3001, function() {
   console.log('%s listening at %s', server.name, server.url);
@@ -131,4 +132,18 @@ function transformEventsToJson(rows) {
   return data;
 }
 
+function putEvent(req, res, next) {
+  var eventType = req.body.eventType;
+  console.log('putEvent [eventType=%s]', eventType);
 
+  if (!eventType) {
+    res.json(200, "Please provide an 'eventType'");
+    next();
+    return;  
+  }
+
+  dbrepository.saveEvent(eventType);
+  
+  res.send(204);
+  next();
+}
