@@ -78,7 +78,7 @@ function putSensorData(req, res, next) {
   console.log('putSensorData [sensorid=%s]', req.params.sensorid);
 
   var roundedTemperature = (req.body.temperature).toFixed(1);
-  var roundedHumidity = (req.body.humidity).toFixed(1);
+  var roundedHumidity = Math.round(req.body.humidity); // round to int
 
   dbrepository.getLimitedLatestSensorData(req.params.sensorid, 2, function(rows) {
     // Optimization: If latest two records in the database are identical with the current
