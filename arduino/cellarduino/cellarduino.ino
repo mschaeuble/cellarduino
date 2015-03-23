@@ -19,7 +19,7 @@
 #define SERVER_IP "192.168.1.4"
 #define SERVER_PORT 80
 #define SERVER_PUTDATA_URL_PATH "/landing/api/sensors/indoor/data"
-#define SERVER_EVENT_URL_PATH "/landing/api/event"
+#define SERVER_EVENT_URL_PATH "/landing/api/events"
 #define SERVER_OUTDOOR_URL_PATH "/landing/api/sensors/openweathermap/latest?format=arduino"
 
 #define FLAPS_OPEN_EVENT "{\"eventType\":\"FLAPS_OPEN\"}"
@@ -63,6 +63,10 @@ DHT dht(CLIMATE_SENSOR_PIN, CLIMATE_SENSOR_TYPE);
 EthernetClient client;
 
 void setup() {
+  closeFlap();
+  delay(1000);
+  openFlap();
+  delay(1000);
   closeFlap();
   
   dht.begin();
