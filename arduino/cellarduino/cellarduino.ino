@@ -18,11 +18,15 @@
 
 #define SERVER_IP "192.168.1.4"
 #define SERVER_PORT 80
-#define SERVER_PUT_URL_PATH "/landing/api/sensors/indoor/data"
+#define SERVER_PUTDATA_URL_PATH "/landing/api/sensors/indoor/data"
+#define SERVER_EVENT_URL_PATH "/landing/api/event"
 #define SERVER_OUTDOOR_URL_PATH "/landing/api/sensors/openweathermap/latest?format=arduino"
 
+#define FLAPS_OPEN_EVENT "{\"eventType\":\"FLAPS_OPEN\"}"
+#define FLAPS_CLOSE_EVENT "{\"eventType\":\"FLAPS_CLOSE\"}"
+  
 /*#define SERVER_PORT 3001
- #define SERVER_PUT_URL_PATH "/sensors/indoor/data"
+ #define SERVER_PUTDATA_URL_PATH "/sensors/indoor/data"
  #define SERVER_OUTDOOR_URL_PATH "/sensors/openweathermap/latest"*/
 
 // 300000ms = 5 minutes
@@ -59,10 +63,6 @@ DHT dht(CLIMATE_SENSOR_PIN, CLIMATE_SENSOR_TYPE);
 EthernetClient client;
 
 void setup() {
-  closeFlap();
-  delay(1000);
-  openFlap();  
-  delay(1000);
   closeFlap();
   
   dht.begin();
@@ -101,7 +101,7 @@ void loop() {
   }
   displayClimateOnLCD(outdoorClimate, 1, "Out");
   
-  if (sendToServer(indoorClimate) != SUCCESSFUL) { 
+  if (sendClimateToServer(indoorClimate) != SUCCESSFUL) { 
     return delay(ERROR_WAIT_TIME_MS); 
   }
 
@@ -269,13 +269,21 @@ void displayClimateOnLCD(struct SensorData climate, int line, char* location) {
   lcd.print(printLine);
 }
 
-boolean sendToServer(struct SensorData climate) {
+boolean sendClimateToServer(struct SensorData climate) {
   char jsonString[39] = {};  
   fillWithSensorData(climate, jsonString);
-   
+  
+  return sendToServer(SERVER_PUTDATA_URL_PATH, jsonString);
+}
+
+boolean sendEventToServer(char *jsonEvent) {
+  return sendToServer(SERVER_EVENT_URL_PATH, jsonEvent);
+}
+
+boolean sendToServer(char* url, char *jsonString) {
   if (client.connect(SERVER_IP, SERVER_PORT)) {
     client.print(F("PUT "));
-    client.print(SERVER_PUT_URL_PATH);
+    client.print(url);
     client.println(F(" HTTP/1.1"));
     
     client.print(F("Host: "));
@@ -299,9 +307,7 @@ boolean sendToServer(struct SensorData climate) {
   else {
     Serial.println(F("connection failed"));
     return ERROR;
-  }
-
-  
+  } 
 }
 
 void fillWithSensorData(struct SensorData climate, char *jsonString) {
@@ -349,8 +355,10 @@ void displayFlapStatusOnLcd() {
 void moveFlap() {
   if (flapIsOpen) {
     openFlap();
+    sendEventToServer(FLAPS_OPEN_EVENT);
   } else {
     closeFlap();
+    sendEventToServer(FLAPS_CLOSE_EVENT);
   }
 }
 
