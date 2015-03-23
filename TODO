@@ -1,4 +1,1 @@
-Arudino
-#define SERVER_SUCCESSFUL_PUT_HTTP_CODE 204
-#define SERVER_SUCCESSFUL_GET_HTTP_CODE 200
-
+- round rel humidity to int und keine nachkommastelle rendern
