@@ -97,7 +97,7 @@ function putSensorData(req, res, next) {
 }
 
 function getEvents(req, res, next) {
-  console.log('getEvents [eventTypes=%s]', eventTypes);
+  console.log('getEvents [eventTypes=%s]', req.params.eventTypes);
   
   if (!req.params.eventTypes) {
     res.json(200, "Please provide an 'eventTypes' parameter");
