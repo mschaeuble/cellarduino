@@ -46,6 +46,15 @@ exports.getEvents = function(eventTypes, callback) {
   });
 };
 
+exports.getLatestEvent = function(callback) {
+  var selectStmt = db.prepare("SELECT * FROM events ORDER BY timestamp desc LIMIT 1");
+  selectStmt.get(function(err, row) {
+    console.log("  latest event: %s", JSON.stringify(row));
+    callback(row);
+  });  
+};
+
+
 exports.saveEvent = function(eventType) {
   var insertStmt = db.prepare("INSERT INTO events(event_type) VALUES (?)");
   insertStmt.run(eventType);

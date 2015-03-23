@@ -142,7 +142,13 @@ function putEvent(req, res, next) {
     return;  
   }
 
-  dbrepository.saveEvent(eventType);
+  dbrepository.getLatestEvent(function(row) {
+    if (row == undefined || row.event_type != eventType) {
+      dbrepository.saveEvent(eventType);
+    } else {
+      console.log("Last event in database is already of same type, do not persist anything");
+    }
+  });
   
   res.send(204);
   next();
