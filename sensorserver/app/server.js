@@ -22,9 +22,14 @@ server.listen(3001, function() {
 
 
 function getSensorData(req, res, next) {
-  console.log('getSensorData [sensorid=%s]', req.params.sensorid);
+  var startDate = req.params.startDate;
+  console.log('getSensorData [sensorid=%s, startDate=%s]', req.params.sensorid, startDate);
 
-  dbrepository.getSensorData(req.params.sensorid, function(rows) {
+  if (!startDate) {
+    startDate = "2014-01-01";
+  }
+
+  dbrepository.getSensorData(req.params.sensorid, startDate, function(rows) {
     var output;
     if (rows.length > 0) {
       output = transformToJson(rows);

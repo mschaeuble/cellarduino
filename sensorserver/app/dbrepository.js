@@ -1,9 +1,9 @@
 var sqlite3 = require('sqlite3').verbose();
 var db = new sqlite3.Database('../resources/data.db');
 
-exports.getSensorData = function(sensorId, callback) {
-  var selectStmt = db.prepare("SELECT * FROM data WHERE sensor_id = ? ORDER BY timestamp");
-  selectStmt.all(sensorId, function(err, rows) {
+exports.getSensorData = function(sensorId, startDate, callback) {
+  var selectStmt = db.prepare("SELECT * FROM data WHERE sensor_id = ? AND timestamp >= ? ORDER BY timestamp");
+  selectStmt.all(sensorId, startDate, function(err, rows) {
     console.log("  returning %d row(s)", rows.length);
     callback(rows);
   });  
