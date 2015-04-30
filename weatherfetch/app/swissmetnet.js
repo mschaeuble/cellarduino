@@ -19,7 +19,9 @@ http.get("http://data.netcetera.com/smn/smn/SMA", function(res) {
 
     res.on('end', function() {
       var data = JSON.parse(body);
-      sendWeatherDataToServer(data.temperature, data.humidity);
+      var temperature = parseFloat(data.temperature);
+      var humidity = parseFloat(data.humidity);
+      sendWeatherDataToServer(temperature, humidity);
     });
 
 
