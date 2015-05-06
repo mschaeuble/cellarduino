@@ -20,7 +20,7 @@
 #define SERVER_PORT 80
 #define SERVER_PUTDATA_URL_PATH "/landing/api/sensors/indoor/data"
 #define SERVER_EVENT_URL_PATH "/landing/api/events"
-#define SERVER_OUTDOOR_URL_PATH "/landing/api/sensors/openweathermap/latest?format=arduino"
+#define SERVER_OUTDOOR_URL_PATH "/landing/api/sensors/swissmetnet/latest?format=arduino"
 
 #define FLAPS_OPEN_EVENT "{\"eventType\":\"FLAPS_OPEN\"}"
 #define FLAPS_CLOSE_EVENT "{\"eventType\":\"FLAPS_CLOSE\"}"
