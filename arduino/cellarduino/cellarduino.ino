@@ -14,7 +14,8 @@
 #define CLIMATE_SENSOR_PIN 2
 #define CLIMATE_SENSOR_TYPE DHT22
 
-#define SERVO_PIN 3
+#define SERVO_1_PIN 3
+#define SERVO_2_PIN 1
 
 #define SERVER_IP "192.168.1.4"
 #define SERVER_PORT 80
@@ -57,7 +58,8 @@ struct SensorData {
 };
 
 boolean flapIsOpen = false;
-int servoPosition = 90;
+int servo1Position = 90;
+int servo2Position = 90;
 
 DHT dht(CLIMATE_SENSOR_PIN, CLIMATE_SENSOR_TYPE);
 EthernetClient client;
@@ -75,7 +77,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F("Booting..."));
   
-  Serial.begin(9600);
+  //Serial.begin(9600);
 
   getIPViaDHCP();
 }
@@ -148,7 +150,7 @@ boolean getOutdoorClimate(struct SensorData &climate) {
     delay(1000);
   } 
   else {
-    Serial.println(F("connection failed"));
+    //Serial.println(F("connection failed"));
     return ERROR;
   }
   
@@ -309,7 +311,7 @@ boolean sendToServer(char* url, char *jsonString) {
     return SUCCESSFUL;
   } 
   else {
-    Serial.println(F("connection failed"));
+    //Serial.println(F("connection failed"));
     return ERROR;
   } 
 }
@@ -367,20 +369,22 @@ void moveFlap() {
 }
 
 void openFlap() {
-  servo.attach(SERVO_PIN);
-  for(; servoPosition < 155; servoPosition += 1)
-  {
-    servo.write(servoPosition);
-    delay(15);
-  } 
-  servo.detach();
+  moveServo(SERVO_1_PIN, servo1Position, 155, +1);
+  delay(1000);
+  moveServo(SERVO_2_PIN, servo2Position, 115, +1);
 }
 
 void closeFlap() {
-  servo.attach(SERVO_PIN);
-  for(; servoPosition>=60; servoPosition-=1)
+  moveServo(SERVO_1_PIN, servo1Position, 60, -1);
+  delay(1000);
+  moveServo(SERVO_2_PIN, servo2Position, 60, -1);
+}
+
+void moveServo(int servoPin, int &positionVariable, int endPosition, int stepSize) {
+  servo.attach(servoPin);
+  for(; positionVariable>=endPosition; positionVariable+=stepSize)
   {
-    servo.write(servoPosition);
+    servo.write(servo1Position);
     delay(15);
   } 
   servo.detach();
