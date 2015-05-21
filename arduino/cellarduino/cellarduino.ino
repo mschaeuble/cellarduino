@@ -369,22 +369,29 @@ void moveFlap() {
 }
 
 void openFlap() {
-  moveServo(SERVO_1_PIN, servo1Position, 155, +1);
+  moveServo(SERVO_1_PIN, servo1Position, 155);
   delay(1000);
-  moveServo(SERVO_2_PIN, servo2Position, 115, +1);
+  moveServo(SERVO_2_PIN, servo2Position, 115);
 }
 
 void closeFlap() {
-  moveServo(SERVO_1_PIN, servo1Position, 60, -1);
+  moveServo(SERVO_1_PIN, servo1Position, 60);
   delay(1000);
-  moveServo(SERVO_2_PIN, servo2Position, 60, -1);
+  moveServo(SERVO_2_PIN, servo2Position, 60);
 }
 
-void moveServo(int servoPin, int &positionVariable, int endPosition, int stepSize) {
+void moveServo(int servoPin, int &positionVariable, int endPosition) {
   servo.attach(servoPin);
-  for(; positionVariable>=endPosition; positionVariable+=stepSize)
+  
+  while(positionVariable != endPosition)
   {
-    servo.write(servo1Position);
+    if (positionVariable < endPosition) {
+      positionVariable++;
+    } else if (positionVariable > endPosition) {
+      positionVariable--;
+    }
+    
+    servo.write(positionVariable);
     delay(15);
   } 
   servo.detach();
