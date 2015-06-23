@@ -368,16 +368,18 @@ void moveFlap() {
   }
 }
 
+// Servo 1: Terrasse
+// Servo 2: Entrance
 void openFlap() {
   moveServo(SERVO_1_PIN, servo1Position, 155);
   delay(1000);
-  moveServo(SERVO_2_PIN, servo2Position, 115);
+  moveServo(SERVO_2_PIN, servo2Position, 130);
 }
 
 void closeFlap() {
   moveServo(SERVO_1_PIN, servo1Position, 60);
   delay(1000);
-  moveServo(SERVO_2_PIN, servo2Position, 60);
+  moveServo(SERVO_2_PIN, servo2Position, 45);
 }
 
 void moveServo(int servoPin, int &positionVariable, int endPosition) {
