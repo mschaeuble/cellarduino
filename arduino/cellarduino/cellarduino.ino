@@ -373,13 +373,13 @@ void moveFlap() {
 void openFlap() {
   moveServo(SERVO_1_PIN, servo1Position, 155);
   delay(1000);
-  moveServo(SERVO_2_PIN, servo2Position, 130);
+  moveServo(SERVO_2_PIN, servo2Position, 45);
 }
 
 void closeFlap() {
   moveServo(SERVO_1_PIN, servo1Position, 60);
   delay(1000);
-  moveServo(SERVO_2_PIN, servo2Position, 45);
+  moveServo(SERVO_2_PIN, servo2Position, 130);
 }
 
 void moveServo(int servoPin, int &positionVariable, int endPosition) {
