@@ -147,7 +147,9 @@ boolean getOutdoorClimate(struct SensorData &climate) {
     client.println(F("Connection: close"));
     client.println();
     
-    delay(1000);
+    while(!client.available()) {
+      delay(100);
+    }
   } 
   else {
     //Serial.println(F("connection failed"));
