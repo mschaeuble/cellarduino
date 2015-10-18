@@ -10,6 +10,6 @@
   "license": "ISC",
   "dependencies": {
     "restify": "^2.8.2",
-    "sqlite3": "^2.2.7"
+    "sqlite3": "3.1.0"
   }
 }

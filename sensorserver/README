@@ -3,7 +3,7 @@ http://freeax.no-ip.biz/~michele/sensorserver/
 
 Server API
 PUT /sensors/SENSORID/data
-GET /sensors/SENSORID/data
+GET /sensors/SENSORID/data  [?startDate=2015-03-24]
 GET /events?eventTypes=A,B,C
 PUT /events (body: {"eventType":"TEST"} )
 
