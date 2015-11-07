@@ -8,28 +8,25 @@
 // Configuration
 // =============================
 
-#define MIN_ABS_HUMIDITY_DIFF 1
 #define MIN_INDOOR_HUMIDITY 45
 
-#define CLIMATE_SENSOR_PIN 2
-#define CLIMATE_SENSOR_TYPE DHT22
+#define CLIMATE_SENSOR_INDOOR_PIN 2
+#define CLIMATE_SENSOR_INDOOR_TYPE DHT22
+#define CLIMATE_SENSOR_OUTDOOR_PIN 0
+#define CLIMATE_SENSOR_OUTDOOR_TYPE DHT22
 
 #define SERVO_1_PIN 3
 #define SERVO_2_PIN 1
 
 #define SERVER_IP "192.168.1.4"
 #define SERVER_PORT 80
-#define SERVER_PUTDATA_URL_PATH "/landing/api/sensors/indoor/data"
+#define SERVER_INDOOR_PUTDATA_URL_PATH "/landing/api/sensors/indoor/data"
+#define SERVER_OUTDOOR_PUTDATA_URL_PATH "/landing/api/sensors/indoor/data"
 #define SERVER_EVENT_URL_PATH "/landing/api/events"
-#define SERVER_OUTDOOR_URL_PATH "/landing/api/sensors/swissmetnet/latest?format=arduino"
 
 #define FLAPS_OPEN_EVENT "{\"eventType\":\"FLAPS_OPEN\"}"
 #define FLAPS_CLOSE_EVENT "{\"eventType\":\"FLAPS_CLOSE\"}"
   
-/*#define SERVER_PORT 3001
- #define SERVER_PUTDATA_URL_PATH "/sensors/indoor/data"
- #define SERVER_OUTDOOR_URL_PATH "/sensors/openweathermap/latest"*/
-
 // 300000ms = 5 minutes
 #define MEASURE_INTERVAL_MS 300000
 
@@ -61,7 +58,8 @@ boolean flapIsOpen = false;
 int servo1Position = 90;
 int servo2Position = 90;
 
-DHT dht(CLIMATE_SENSOR_PIN, CLIMATE_SENSOR_TYPE);
+DHT dhtIndoor(CLIMATE_SENSOR_INDOOR_PIN, CLIMATE_SENSOR_INDOOR_TYPE);
+DHT dhtOutdoor(CLIMATE_SENSOR_OUTDOOR_PIN, CLIMATE_SENSOR_OUTDOOR_TYPE);
 EthernetClient client;
 
 void setup() {
@@ -71,7 +69,8 @@ void setup() {
   delay(1000);
   closeFlap();
   
-  dht.begin();
+  dhtIndoor.begin();
+  dhtOutdoor.begin();
   lcd.begin(24, 2);
 
   lcd.setCursor(0, 0);
@@ -102,12 +101,16 @@ void loop() {
   }
   displayClimateOnLCD(indoorClimate, 0, "In ");
 
-  if (getOutdoorClimate(outdoorClimate) != SUCCESSFUL) { 
+  if (measureIndoorClimate(outdoorClimate) != SUCCESSFUL) { 
     return delay(ERROR_WAIT_TIME_MS); 
   }
   displayClimateOnLCD(outdoorClimate, 1, "Out");
   
-  if (sendClimateToServer(indoorClimate) != SUCCESSFUL) { 
+  if (sendClimateToServer(indoorClimate, SERVER_INDOOR_PUTDATA_URL_PATH) != SUCCESSFUL) { 
+    return delay(ERROR_WAIT_TIME_MS); 
+  }
+  
+  if (sendClimateToServer(outdoorClimate, SERVER_OUTDOOR_PUTDATA_URL_PATH) != SUCCESSFUL) { 
     return delay(ERROR_WAIT_TIME_MS); 
   }
 
@@ -125,8 +128,8 @@ void loop() {
 }
 
 boolean measureIndoorClimate(struct SensorData &climate) {
-  climate.relativeHumidity = dht.readHumidity();
-  climate.temperature = dht.readTemperature();
+  climate.relativeHumidity = dhtIndoor.readHumidity();
+  climate.temperature = dhtIndoor.readTemperature();
 
   if (isnan(climate.relativeHumidity) || isnan(climate.temperature)) {
     return ERROR;
@@ -136,113 +139,14 @@ boolean measureIndoorClimate(struct SensorData &climate) {
 }
 
 boolean getOutdoorClimate(struct SensorData &climate) {
-  if (client.connect(SERVER_IP, SERVER_PORT)) {
-    client.print(F("GET "));
-    client.print(SERVER_OUTDOOR_URL_PATH);
-    client.println(F(" HTTP/1.1"));
-    
-    client.print(F("Host: "));
-    client.println(SERVER_IP);
-    
-    client.println(F("Connection: close"));
-    client.println();
-    
-    while(!client.available()) {
-      delay(100);
-    }
-  } 
-  else {
-    //Serial.println(F("connection failed"));
+  climate.relativeHumidity = dhtOutdoor.readHumidity();
+  climate.temperature = dhtOutdoor.readTemperature();
+
+  if (isnan(climate.relativeHumidity) || isnan(climate.temperature)) {
     return ERROR;
   }
-  
-  char body[20]; 
-  readBody(body, client);
-  
-  client.stop();
-  
-  parseServerAnswer(body, climate);
 
   return SUCCESSFUL;  
-}
-
-void readBody(char* body, EthernetClient client) {
-  int i = 0;
-  boolean httpBody = false;
-  boolean currentLineIsBlank = false;
-              
-  while(client.connected() && client.available()) {
-      char c = client.read();
-      
-      if(httpBody){
-        if (i < 19) {
-          body[i] = c;
-          i++;
-        } else {
-          client.stop();  
-        }
-      } else {
-        if (c == '\n' && currentLineIsBlank) {
-          httpBody = true;
-        }
-
-        if (c == '\n') {
-          // you're starting a new line
-          currentLineIsBlank = true;
-        } else if (c != '\r') {
-          // you've gotten a character on the current line
-          currentLineIsBlank = false;
-        }
-      }
-  }
-
-  body[i] = '\0';
-}
-
-void parseServerAnswer(char* body, struct SensorData &climate) {
-  // example body: T0.2;H78
-  char temperatureCharArray[6] = {};
-  char humidityCharArray[6] = {};
-  
-  boolean inTemperature = false;
-  boolean inHumidity = false;
-  
-  int i = 0;
-  for (int index = 0; index < strlen(body); index++) {
-    char c = body[index];
-
-    if (c == 'T') { // beginn of temperature
-      i = 0;
-      inTemperature = true;
-      continue;
-    }
-      
-    if (c == ';') {
-      inTemperature = false;
-      inHumidity = false;
-      continue;
-    }
-      
-    if (c == 'H') { // beginn of humidity
-      i = 0;
-      inHumidity = true;
-      continue;
-    }
-      
-    if (inTemperature && i < 5) {
-      temperatureCharArray[i] = c;
-      temperatureCharArray[i+1] = '\0';
-      i++;
-    }
-    if (inHumidity && i < 5) {
-      humidityCharArray[i] = c;
-      humidityCharArray[i+1] = '\0';
-      i++;
-    }
-  }
- 
-  climate.temperature = atof(temperatureCharArray);
-  climate.relativeHumidity = atof(humidityCharArray);
 }
 
 void clearLcd() {
@@ -277,11 +181,11 @@ void displayClimateOnLCD(struct SensorData climate, int line, char* location) {
   lcd.print(printLine);
 }
 
-boolean sendClimateToServer(struct SensorData climate) {
+boolean sendClimateToServer(struct SensorData climate, char* url) {
   char jsonString[39] = {};  
   fillWithSensorData(climate, jsonString);
   
-  return sendToServer(SERVER_PUTDATA_URL_PATH, jsonString);
+  return sendToServer(url, jsonString);
 }
 
 boolean sendEventToServer(char *jsonEvent) {
@@ -347,7 +251,7 @@ void markWetterLocationOnLcd(float absIndoor, float absOutdoor) {
 }
 
 void determineFlapStatus(float absHumidityDiff, struct SensorData &indoorClimate) { 
-  flapIsOpen = ((absHumidityDiff > MIN_ABS_HUMIDITY_DIFF) && (indoorClimate.relativeHumidity > MIN_INDOOR_HUMIDITY));
+  flapIsOpen = ((absHumidityDiff > 0) && (indoorClimate.relativeHumidity > MIN_INDOOR_HUMIDITY));
 }
 
 void displayFlapStatusOnLcd() {
