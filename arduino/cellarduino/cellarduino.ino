@@ -21,7 +21,7 @@
 #define SERVER_IP "192.168.1.4"
 #define SERVER_PORT 80
 #define SERVER_INDOOR_PUTDATA_URL_PATH "/landing/api/sensors/indoor/data"
-#define SERVER_OUTDOOR_PUTDATA_URL_PATH "/landing/api/sensors/indoor/data"
+#define SERVER_OUTDOOR_PUTDATA_URL_PATH "/landing/api/sensors/outdoor/data"
 #define SERVER_EVENT_URL_PATH "/landing/api/events"
 
 #define FLAPS_OPEN_EVENT "{\"eventType\":\"FLAPS_OPEN\"}"
@@ -101,7 +101,7 @@ void loop() {
   }
   displayClimateOnLCD(indoorClimate, 0, "In ");
 
-  if (measureIndoorClimate(outdoorClimate) != SUCCESSFUL) { 
+  if (measureOutdoorClimate(outdoorClimate) != SUCCESSFUL) { 
     return delay(ERROR_WAIT_TIME_MS); 
   }
   displayClimateOnLCD(outdoorClimate, 1, "Out");
@@ -137,6 +137,18 @@ boolean measureIndoorClimate(struct SensorData &climate) {
 
   return SUCCESSFUL;  
 }
+
+boolean measureOutdoorClimate(struct SensorData &climate) {
+  climate.relativeHumidity = dhtOutdoor.readHumidity();
+  climate.temperature = dhtOutdoor.readTemperature();
+
+  if (isnan(climate.relativeHumidity) || isnan(climate.temperature)) {
+    return ERROR;
+  }
+
+  return SUCCESSFUL;  
+}
+
 
 boolean getOutdoorClimate(struct SensorData &climate) {
   climate.relativeHumidity = dhtOutdoor.readHumidity();
