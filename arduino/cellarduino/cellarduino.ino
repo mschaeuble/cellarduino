@@ -15,8 +15,8 @@
 #define CLIMATE_SENSOR_OUTDOOR_PIN 0
 #define CLIMATE_SENSOR_OUTDOOR_TYPE DHT22
 
-#define SERVO_1_PIN 3
-#define SERVO_2_PIN 1
+#define FLAP_RELAY_PIN 3
+#define SERVO_PIN 1
 
 #define SERVER_IP "192.168.1.4"
 #define SERVER_PORT 80
@@ -55,18 +55,19 @@ struct SensorData {
 };
 
 boolean flapIsOpen = false;
-int servo1Position = 90;
-int servo2Position = 90;
+int servoPosition = 90;
 
 DHT dhtIndoor(CLIMATE_SENSOR_INDOOR_PIN, CLIMATE_SENSOR_INDOOR_TYPE);
 DHT dhtOutdoor(CLIMATE_SENSOR_OUTDOOR_PIN, CLIMATE_SENSOR_OUTDOOR_TYPE);
 EthernetClient client;
 
 void setup() {
+  pinMode(FLAP_RELAY_PIN, OUTPUT); 
+  
   closeFlap();
-  delay(1000);
+  delay(10000);
   openFlap();
-  delay(1000);
+  delay(10000);
   closeFlap();
   
   dhtIndoor.begin();
@@ -286,18 +287,16 @@ void moveFlap() {
   }
 }
 
-// Servo 1: Terrasse
-// Servo 2: Entrance
 void openFlap() {
-  moveServo(SERVO_1_PIN, servo1Position, 155);
+  moveServo(SERVO_PIN, servoPosition, 45);
   delay(1000);
-  moveServo(SERVO_2_PIN, servo2Position, 45);
+  digitalWrite(FLAP_RELAY_PIN, HIGH);
 }
 
 void closeFlap() {
-  moveServo(SERVO_1_PIN, servo1Position, 60);
+  moveServo(SERVO_PIN, servoPosition, 130);
   delay(1000);
-  moveServo(SERVO_2_PIN, servo2Position, 130);
+  digitalWrite(FLAP_RELAY_PIN, LOW);
 }
 
 void moveServo(int servoPin, int &positionVariable, int endPosition) {
