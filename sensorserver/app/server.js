@@ -117,10 +117,10 @@ function getEvents(req, res, next) {
     if (rows.length > 0) {
       output = transformEventsToJson(rows);
     } else {
-      output = "{}";
+      output = {};
     }
     res.json(200, output);
-    next();
+    return next();
   });
 }
 

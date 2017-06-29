@@ -9,7 +9,7 @@
   "author": "Michele Schäuble",
   "license": "ISC",
   "dependencies": {
-    "restify": "^2.8.2",
-    "sqlite3": "3.1.4"
+    "restify": "4.3.1",
+    "sqlite3": "3.1.8"
   }
 }
