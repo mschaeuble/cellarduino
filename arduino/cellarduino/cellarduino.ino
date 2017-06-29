@@ -2,7 +2,8 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <LiquidCrystal.h>
-#include <Servo.h> 
+#include <Servo.h>
+#include <ArduinoJson.h>
 
 // =============================
 // Configuration
@@ -12,11 +13,9 @@
 
 #define CLIMATE_SENSOR_INDOOR_PIN 2
 #define CLIMATE_SENSOR_INDOOR_TYPE DHT22
-#define CLIMATE_SENSOR_OUTDOOR_PIN 0
-#define CLIMATE_SENSOR_OUTDOOR_TYPE DHT22
 
 #define FLAP_RELAY_PIN 3
-#define SERVO_PIN 1
+#define SERVO_PIN 22
 
 #define SERVER_IP "192.168.1.4"
 #define SERVER_PORT 80
@@ -26,16 +25,17 @@
 
 #define FLAPS_OPEN_EVENT "{\"eventType\":\"FLAPS_OPEN\"}"
 #define FLAPS_CLOSE_EVENT "{\"eventType\":\"FLAPS_CLOSE\"}"
-  
+
 // 300000ms = 5 minutes
 #define MEASURE_INTERVAL_MS 300000
 
-byte mac[] = { 
-  0x00, 0xAA, 0xBB, 0xCC, 0xDE, 0x03 };
+byte mac[] = {
+  0x00, 0xAA, 0xBB, 0xCC, 0xDE, 0x03
+};
 
 LiquidCrystal lcd(9, 8, 7, 6, 5, 4);
 
-Servo servo;  
+Servo servo;
 
 // =============================
 // Constants
@@ -58,26 +58,28 @@ boolean flapIsOpen = false;
 int servoPosition = 90;
 
 DHT dhtIndoor(CLIMATE_SENSOR_INDOOR_PIN, CLIMATE_SENSOR_INDOOR_TYPE);
-DHT dhtOutdoor(CLIMATE_SENSOR_OUTDOOR_PIN, CLIMATE_SENSOR_OUTDOOR_TYPE);
 EthernetClient client;
 
 void setup() {
-  pinMode(FLAP_RELAY_PIN, OUTPUT); 
-  
-  closeFlap();
-  delay(10000);
-  openFlap();
-  delay(10000);
-  closeFlap();
-  
-  dhtIndoor.begin();
-  dhtOutdoor.begin();
-  lcd.begin(24, 2);
+  Serial.begin(9600);
 
+  // disable SD card (on ethernet module)
+  pinMode(4, OUTPUT);
+  digitalWrite(4, HIGH);
+
+  pinMode(FLAP_RELAY_PIN, OUTPUT);
+
+  /*closeFlap();
+    delay(10000);
+    openFlap();
+    delay(10000);
+    closeFlap();*/
+
+  dhtIndoor.begin();
+
+  lcd.begin(24, 2);
   lcd.setCursor(0, 0);
   lcd.print(F("Booting..."));
-  
-  //Serial.begin(9600);
 
   getIPViaDHCP();
 }
@@ -87,9 +89,10 @@ void getIPViaDHCP() {
     delay(10000);
   }
 
+  delay(500);
+
   lcd.setCursor(0, 0);
   lcd.print(Ethernet.localIP());
-  delay(1000);
 }
 
 void loop() {
@@ -97,22 +100,22 @@ void loop() {
 
   clearLcd();
 
-  if (measureIndoorClimate(indoorClimate) != SUCCESSFUL) { 
-    return delay(ERROR_WAIT_TIME_MS); 
+  if (measureIndoorClimate(indoorClimate) != SUCCESSFUL) {
+    return delay(ERROR_WAIT_TIME_MS);
   }
   displayClimateOnLCD(indoorClimate, 0, "In ");
 
-  if (measureOutdoorClimate(outdoorClimate) != SUCCESSFUL) { 
-    return delay(ERROR_WAIT_TIME_MS); 
+  if (fetchOutdoorClimate(outdoorClimate) != SUCCESSFUL) {
+    return delay(ERROR_WAIT_TIME_MS);
   }
   displayClimateOnLCD(outdoorClimate, 1, "Out");
-  
-  if (sendClimateToServer(indoorClimate, SERVER_INDOOR_PUTDATA_URL_PATH) != SUCCESSFUL) { 
-    return delay(ERROR_WAIT_TIME_MS); 
+
+  if (sendClimateToServer(indoorClimate, SERVER_INDOOR_PUTDATA_URL_PATH) != SUCCESSFUL) {
+    return delay(ERROR_WAIT_TIME_MS);
   }
-  
-  if (sendClimateToServer(outdoorClimate, SERVER_OUTDOOR_PUTDATA_URL_PATH) != SUCCESSFUL) { 
-    return delay(ERROR_WAIT_TIME_MS); 
+
+  if (sendClimateToServer(outdoorClimate, SERVER_OUTDOOR_PUTDATA_URL_PATH) != SUCCESSFUL) {
+    return delay(ERROR_WAIT_TIME_MS);
   }
 
   float absIndoor = calculateAbsoluteHumidity(indoorClimate.temperature, indoorClimate.relativeHumidity);
@@ -136,34 +139,101 @@ boolean measureIndoorClimate(struct SensorData &climate) {
     return ERROR;
   }
 
-  return SUCCESSFUL;  
+  return SUCCESSFUL;
 }
 
-boolean measureOutdoorClimate(struct SensorData &climate) {
-  climate.relativeHumidity = dhtOutdoor.readHumidity();
-  climate.temperature = dhtOutdoor.readTemperature();
+boolean fetchOutdoorClimate(struct SensorData &climate) {
+  char responseBody[750];
 
-  if (isnan(climate.relativeHumidity) || isnan(climate.temperature)) {
+  if (callOpenweathermapAPI() == SUCCESSFUL
+      && readResponse(responseBody) == SUCCESSFUL
+      && parseResponse(responseBody, climate) == SUCCESSFUL) {
+    return SUCCESSFUL;
+  } else {
+    return ERROR;
+  }
+}
+
+boolean callOpenweathermapAPI() {
+  Serial.print(F("Connecting to Openweathermap API... "));
+
+  if (client.connect("api.openweathermap.org", 80)) {
+    Serial.println(F("OK"));
+
+    client.println(F("GET /data/2.5/weather?id=6290434&appid=07f3a41b404b4b5326ba21bcb3aebdf8&units=metric HTTP/1.1"));
+    client.println(F("Host: api.openweathermap.org"));
+    client.println(F("Connection: close"));
+    client.println();
+
+    while (!client.available()) {
+      delay(100);
+    }
+
+    return SUCCESSFUL;
+  } else {
+    Serial.println(F("FAILED"));
+    return ERROR;
+  }
+}
+
+boolean readResponse(char* body) {
+  int i = 0;
+  boolean httpBody = false;
+  boolean currentLineIsBlank = false;
+
+  while (client.available()) {
+    char c = client.read();
+    Serial.print(c);
+    if (httpBody) {
+      body[i] = c;
+      i++;
+    } else {
+      if (c == '\n' && currentLineIsBlank) {
+        httpBody = true;
+      }
+
+      if (c == '\n') {
+        // you're starting a new line
+        currentLineIsBlank = true;
+      } else if (c != '\r') {
+        // you've gotten a character on the current line
+        currentLineIsBlank = false;
+      }
+    }
+  }
+  body[i] = '\0';
+  Serial.println();
+
+  if (!client.connected()) {
+    Serial.print(F("Received bytes "));
+    Serial.println(strlen(body));
+    client.stop();
+    client.flush();
+    Serial.println(F("Disconnected"));
+    return SUCCESSFUL;
+  } else {
+    Serial.println(F("Error: Still connected!"));
+    return ERROR;
+  }
+}
+
+boolean parseResponse(char* responseBody, struct SensorData & climate) {
+  StaticJsonBuffer<750> jsonBuffer;
+
+  JsonObject& root = jsonBuffer.parseObject(responseBody);
+  if (!root.success()) {
+    Serial.println(F("parseObject() failed"));
     return ERROR;
   }
 
-  return SUCCESSFUL;  
-}
+  climate.relativeHumidity = root[F("main")][F("humidity")];
+  climate.temperature = root[F("main")][F("temp")];
 
-
-boolean getOutdoorClimate(struct SensorData &climate) {
-  climate.relativeHumidity = dhtOutdoor.readHumidity();
-  climate.temperature = dhtOutdoor.readTemperature();
-
-  if (isnan(climate.relativeHumidity) || isnan(climate.temperature)) {
-    return ERROR;
-  }
-
-  return SUCCESSFUL;  
+  return SUCCESSFUL;
 }
 
 void clearLcd() {
-  for (int line=0; line<2; line++) {
+  for (int line = 0; line < 2; line++) {
     lcd.setCursor(0, line);
     lcd.print(F("                        "));
   }
@@ -171,21 +241,21 @@ void clearLcd() {
   lcd.setCursor(0, 0);
 }
 
-const char degreeSymbol[] = {223,'C',0};
+const char degreeSymbol[] = {223, 'C', 0};
 
-void displayClimateOnLCD(struct SensorData climate, int line, char* location) {
+void displayClimateOnLCD(struct SensorData climate, int line, const char* location) {
   char buffer[5]; // buffer for temp/humidity incl. decimal point & possible minus sign
-  
+
   char printLine[18] = " ";
   strcat(printLine, location);
-  strcat(printLine, ": "); 
-  
+  strcat(printLine, ": ");
+
   dtostrf(climate.temperature, 4, 1, buffer); // 4=minimum width, 1=precision
   strcat(printLine, buffer);
   strcat(printLine, degreeSymbol);
-  
+
   strcat(printLine, "/");
-  
+
   dtostrf(climate.relativeHumidity, 3, 1, buffer);
   strcat(printLine, buffer);
   strcat(printLine, "%");
@@ -194,10 +264,10 @@ void displayClimateOnLCD(struct SensorData climate, int line, char* location) {
   lcd.print(printLine);
 }
 
-boolean sendClimateToServer(struct SensorData climate, char* url) {
-  char jsonString[39] = {};  
+boolean sendClimateToServer(struct SensorData climate, const char* url) {
+  char jsonString[39] = {};
   fillWithSensorData(climate, jsonString);
-  
+
   return sendToServer(url, jsonString);
 }
 
@@ -210,16 +280,16 @@ boolean sendToServer(char* url, char *jsonString) {
     client.print(F("PUT "));
     client.print(url);
     client.println(F(" HTTP/1.1"));
-    
+
     client.print(F("Host: "));
     client.println(SERVER_IP);
-    
+
     client.print(F("Content-Type: "));
     client.println(CONTENT_TYPE_JSON);
-    
+
     client.print(F("Content-length: "));
     client.println(strlen(jsonString));
-    
+
     client.println(F("Connection: close"));
     client.println();
     client.println(jsonString);
@@ -228,26 +298,26 @@ boolean sendToServer(char* url, char *jsonString) {
     client.stop();
 
     return SUCCESSFUL;
-  } 
+  }
   else {
-    //Serial.println(F("connection failed"));
+    Serial.println(F("connection failed"));
     return ERROR;
-  } 
+  }
 }
 
 void fillWithSensorData(struct SensorData climate, char *jsonString) {
   char buffer[5]; // buffer for temp/humidity incl. decimal point & possible minus sign
-  
+
   // temperature
   strcat(jsonString, "{\"temperature\":");
-  dtostrf(climate.temperature, 1, 1, buffer); // min width: 1 characters, 1 decimal 
-  strcat(jsonString, buffer); 
+  dtostrf(climate.temperature, 1, 1, buffer); // min width: 1 characters, 1 decimal
+  strcat(jsonString, buffer);
 
-  // humidity  
-  strcat(jsonString, ",\"humidity\":");  
+  // humidity
+  strcat(jsonString, ",\"humidity\":");
   dtostrf(climate.relativeHumidity, 1, 1, buffer);
-  strcat(jsonString, buffer); 
-  
+  strcat(jsonString, buffer);
+
   strcat(jsonString, "}");
 }
 
@@ -255,7 +325,7 @@ void markWetterLocationOnLcd(float absIndoor, float absOutdoor) {
   int lineNumber;
   if (absIndoor > absOutdoor) {
     lineNumber = 0;
-  } 
+  }
   else {
     lineNumber = 1;
   }
@@ -263,7 +333,7 @@ void markWetterLocationOnLcd(float absIndoor, float absOutdoor) {
   lcd.print('>');
 }
 
-void determineFlapStatus(float absHumidityDiff, struct SensorData &indoorClimate) { 
+void determineFlapStatus(float absHumidityDiff, struct SensorData &indoorClimate) {
   flapIsOpen = ((absHumidityDiff > 0) && (indoorClimate.relativeHumidity > MIN_INDOOR_HUMIDITY));
 }
 
@@ -271,7 +341,7 @@ void displayFlapStatusOnLcd() {
   lcd.setCursor(21, 0);
   if (flapIsOpen) {
     lcd.print(F("AUF"));
-  } 
+  }
   else {
     lcd.print(F(" ZU"));
   }
@@ -301,18 +371,18 @@ void closeFlap() {
 
 void moveServo(int servoPin, int &positionVariable, int endPosition) {
   servo.attach(servoPin);
-  
-  while(positionVariable != endPosition)
+
+  while (positionVariable != endPosition)
   {
     if (positionVariable < endPosition) {
       positionVariable++;
     } else if (positionVariable > endPosition) {
       positionVariable--;
     }
-    
+
     servo.write(positionVariable);
     delay(15);
-  } 
+  }
   servo.detach();
 }
 
@@ -320,17 +390,17 @@ const float molecularWeightOfWaterVapor = 18.016;
 const float universalGasConstant = 8314.3;
 
 /*
- * Calculates the absolute humidity in [g water vapor per m3 air].
- * Formulas based on http://www.wetterochs.de/wetter/feuchte.html
- * 
- * temperature -> temperature in degree Celsius
- * relativeHumidity -> relative humidity [0.0 - 100]
- */
+   Calculates the absolute humidity in [g water vapor per m3 air].
+   Formulas based on http://www.wetterochs.de/wetter/feuchte.html
+
+   temperature -> temperature in degree Celsius
+   relativeHumidity -> relative humidity [0.0 - 100]
+*/
 float calculateAbsoluteHumidity(float temperature, float relativeHumidity) {
-  float saturatedVaporPressure = 6.1078 * pow(10, ((7.5*temperature)/(237.3+temperature))); 
-  float currentVaporPressure = (relativeHumidity/100) * saturatedVaporPressure;
+  float saturatedVaporPressure = 6.1078 * pow(10, ((7.5 * temperature) / (237.3 + temperature)));
+  float currentVaporPressure = (relativeHumidity / 100) * saturatedVaporPressure;
   float temperatureInKelvin = temperature + 273.15;
-  float absoluteHumidity = 100000 * (molecularWeightOfWaterVapor/universalGasConstant) * (currentVaporPressure/temperatureInKelvin);
+  float absoluteHumidity = 100000 * (molecularWeightOfWaterVapor / universalGasConstant) * (currentVaporPressure / temperatureInKelvin);
   return absoluteHumidity;
 }
 
