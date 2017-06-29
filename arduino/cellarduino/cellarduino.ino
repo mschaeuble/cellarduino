@@ -10,12 +10,16 @@
 // =============================
 
 #define MIN_INDOOR_HUMIDITY 45
+#define FAN_TURN_ON_INDOOR_HUMIDITY 60
 
-#define CLIMATE_SENSOR_INDOOR_PIN 2
+#define CLIMATE_SENSOR_INDOOR_PIN 24
 #define CLIMATE_SENSOR_INDOOR_TYPE DHT22
 
-#define FLAP_RELAY_PIN 3
+#define FLAP_RELAY_PIN 26
+#define FLAPS_MOVE_TIME_MS 15000
+
 #define SERVO_PIN 22
+#define FAN_PIN 48
 
 #define SERVER_IP "192.168.1.4"
 #define SERVER_PORT 80
@@ -26,14 +30,14 @@
 #define FLAPS_OPEN_EVENT "{\"eventType\":\"FLAPS_OPEN\"}"
 #define FLAPS_CLOSE_EVENT "{\"eventType\":\"FLAPS_CLOSE\"}"
 
-// 300000ms = 5 minutes
-#define MEASURE_INTERVAL_MS 300000
+// 600000ms = 10 minutes
+#define MEASURE_INTERVAL_MS 600000
 
 byte mac[] = {
   0x00, 0xAA, 0xBB, 0xCC, 0xDE, 0x03
 };
 
-LiquidCrystal lcd(9, 8, 7, 6, 5, 4);
+LiquidCrystal lcd(38, 36, 34, 32, 30, 28);
 
 Servo servo;
 
@@ -54,7 +58,8 @@ struct SensorData {
   float relativeHumidity;
 };
 
-boolean flapIsOpen = false;
+boolean flapsOpen = false;
+boolean fanOn = false;
 int servoPosition = 90;
 
 DHT dhtIndoor(CLIMATE_SENSOR_INDOOR_PIN, CLIMATE_SENSOR_INDOOR_TYPE);
@@ -68,6 +73,9 @@ void setup() {
   digitalWrite(4, HIGH);
 
   pinMode(FLAP_RELAY_PIN, OUTPUT);
+  
+  pinMode(FAN_PIN, OUTPUT);
+  digitalWrite(FAN_PIN, HIGH); // turn off fan
 
   /*closeFlap();
     delay(10000);
@@ -110,14 +118,6 @@ void loop() {
   }
   displayClimateOnLCD(outdoorClimate, 1, "Out");
 
-  if (sendClimateToServer(indoorClimate, SERVER_INDOOR_PUTDATA_URL_PATH) != SUCCESSFUL) {
-    return delay(ERROR_WAIT_TIME_MS);
-  }
-
-  if (sendClimateToServer(outdoorClimate, SERVER_OUTDOOR_PUTDATA_URL_PATH) != SUCCESSFUL) {
-    return delay(ERROR_WAIT_TIME_MS);
-  }
-
   float absIndoor = calculateAbsoluteHumidity(indoorClimate.temperature, indoorClimate.relativeHumidity);
   float absOutdoor = calculateAbsoluteHumidity(outdoorClimate.temperature, outdoorClimate.relativeHumidity);
 
@@ -127,6 +127,18 @@ void loop() {
   determineFlapStatus(absHumidityDiff, indoorClimate);
   displayFlapStatusOnLcd();
   moveFlap();
+  
+  determineFanStatus(indoorClimate);
+  displayFanStatusOnLcd();
+  switchFan();
+
+  if (sendClimateToServer(indoorClimate, SERVER_INDOOR_PUTDATA_URL_PATH) != SUCCESSFUL) {
+    Serial.println(F("Error sending indoor climate to server"));
+  }
+
+  if (sendClimateToServer(outdoorClimate, SERVER_OUTDOOR_PUTDATA_URL_PATH) != SUCCESSFUL) {
+    Serial.println(F("Error sending outdoor climate to server"));
+  }
 
   delay(MEASURE_INTERVAL_MS);
 }
@@ -334,12 +346,16 @@ void markWetterLocationOnLcd(float absIndoor, float absOutdoor) {
 }
 
 void determineFlapStatus(float absHumidityDiff, struct SensorData &indoorClimate) {
-  flapIsOpen = ((absHumidityDiff > 0) && (indoorClimate.relativeHumidity > MIN_INDOOR_HUMIDITY));
+  flapsOpen = ((absHumidityDiff > 0) && (indoorClimate.relativeHumidity > MIN_INDOOR_HUMIDITY));
+}
+
+void determineFanStatus(struct SensorData &indoorClimate) {
+  fanOn = flapsOpen && indoorClimate.relativeHumidity >= FAN_TURN_ON_INDOOR_HUMIDITY;
 }
 
 void displayFlapStatusOnLcd() {
   lcd.setCursor(21, 0);
-  if (flapIsOpen) {
+  if (flapsOpen) {
     lcd.print(F("AUF"));
   }
   else {
@@ -347,8 +363,26 @@ void displayFlapStatusOnLcd() {
   }
 }
 
+void displayFanStatusOnLcd() {
+  lcd.setCursor(21, 1);
+  if (fanOn) {
+    lcd.print(F(" AN"));
+  }
+  else {
+    lcd.print(F(" AUS"));
+  }
+}
+
+void switchFan() {
+  if (fanOn) {
+    digitalWrite(FAN_PIN, LOW);
+  } else {
+    digitalWrite(FAN_PIN, HIGH);
+  }
+}
+
 void moveFlap() {
-  if (flapIsOpen) {
+  if (flapsOpen) {
     openFlap();
     sendEventToServer(FLAPS_OPEN_EVENT);
   } else {
@@ -361,12 +395,14 @@ void openFlap() {
   moveServo(SERVO_PIN, servoPosition, 45);
   delay(1000);
   digitalWrite(FLAP_RELAY_PIN, HIGH);
+  delay(FLAPS_MOVE_TIME_MS);
 }
 
 void closeFlap() {
   moveServo(SERVO_PIN, servoPosition, 130);
   delay(1000);
   digitalWrite(FLAP_RELAY_PIN, LOW);
+  delay(FLAPS_MOVE_TIME_MS);
 }
 
 void moveServo(int servoPin, int &positionVariable, int endPosition) {
