@@ -48,7 +48,8 @@ boolean SUCCESSFUL = true;
 boolean ERROR = false;
 
 #define CONTENT_TYPE_JSON "application/json"
-#define ERROR_WAIT_TIME_MS 10000
+// 30000 ms = 30 seconds
+#define ERROR_WAIT_TIME_MS 30000
 
 // =============================
 // Data structures
@@ -177,8 +178,15 @@ boolean callOpenweathermapAPI() {
     client.println(F("Connection: close"));
     client.println();
 
+    int errorCount = 0;
     while (!client.available()) {
       delay(100);
+      errorCount++;
+
+      if (errorCount > 100) {
+        Serial.println(F("Failed 100 times at waiting for client to be available"));
+        return ERROR;
+      }
     }
 
     return SUCCESSFUL;
@@ -195,6 +203,12 @@ boolean readResponse(char* body) {
 
   while (client.available()) {
     char c = client.read();
+
+    if (c == -1) {
+      Serial.println(F("No byte to read"));
+      return ERROR;
+    }
+    
     Serial.print(c);
     if (httpBody) {
       body[i] = c;
@@ -253,7 +267,7 @@ void clearLcd() {
   lcd.setCursor(0, 0);
 }
 
-const char degreeSymbol[] = {223, 'C', 0};
+const char degreeSymbol[] = {(char)223, 'C', 0};
 
 void displayClimateOnLCD(struct SensorData climate, int line, const char* location) {
   char buffer[5]; // buffer for temp/humidity incl. decimal point & possible minus sign
@@ -283,11 +297,11 @@ boolean sendClimateToServer(struct SensorData climate, const char* url) {
   return sendToServer(url, jsonString);
 }
 
-boolean sendEventToServer(char *jsonEvent) {
+boolean sendEventToServer(const char *jsonEvent) {
   return sendToServer(SERVER_EVENT_URL_PATH, jsonEvent);
 }
 
-boolean sendToServer(char* url, char *jsonString) {
+boolean sendToServer(const char* url, const char *jsonString) {
   if (client.connect(SERVER_IP, SERVER_PORT)) {
     client.print(F("PUT "));
     client.print(url);
@@ -369,7 +383,7 @@ void displayFanStatusOnLcd() {
     lcd.print(F(" AN"));
   }
   else {
-    lcd.print(F(" AUS"));
+    lcd.print(F("AUS"));
   }
 }
 
