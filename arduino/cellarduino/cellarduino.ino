@@ -84,11 +84,11 @@ void setup() {
     delay(10000);
     closeFlap();*/
 
-  dhtIndoor.begin();
-
   lcd.begin(24, 2);
   lcd.setCursor(0, 0);
   lcd.print(F("Booting..."));
+
+  dhtIndoor.begin();
 
   getIPViaDHCP();
 }
@@ -129,7 +129,7 @@ void loop() {
   displayFlapStatusOnLcd();
   moveFlap();
   
-  determineFanStatus(indoorClimate);
+  determineFanStatus(absHumidityDiff, indoorClimate);
   displayFanStatusOnLcd();
   switchFan();
 
@@ -156,7 +156,7 @@ boolean measureIndoorClimate(struct SensorData &climate) {
 }
 
 boolean fetchOutdoorClimate(struct SensorData &climate) {
-  char responseBody[750];
+  char responseBody[2000];
 
   if (callOpenweathermapAPI() == SUCCESSFUL
       && readResponse(responseBody) == SUCCESSFUL
@@ -244,7 +244,7 @@ boolean readResponse(char* body) {
 }
 
 boolean parseResponse(char* responseBody, struct SensorData & climate) {
-  StaticJsonBuffer<750> jsonBuffer;
+  StaticJsonBuffer<2000> jsonBuffer;
 
   JsonObject& root = jsonBuffer.parseObject(responseBody);
   if (!root.success()) {
@@ -360,11 +360,11 @@ void markWetterLocationOnLcd(float absIndoor, float absOutdoor) {
 }
 
 void determineFlapStatus(float absHumidityDiff, struct SensorData &indoorClimate) {
-  flapsOpen = ((absHumidityDiff > 0) && (indoorClimate.relativeHumidity > MIN_INDOOR_HUMIDITY));
+  flapsOpen = ((absHumidityDiff > 0.5) && (indoorClimate.relativeHumidity > MIN_INDOOR_HUMIDITY));
 }
 
-void determineFanStatus(struct SensorData &indoorClimate) {
-  fanOn = flapsOpen && indoorClimate.relativeHumidity >= FAN_TURN_ON_INDOOR_HUMIDITY;
+void determineFanStatus(float absHumidityDiff, struct SensorData &indoorClimate) {
+  fanOn = flapsOpen && indoorClimate.relativeHumidity >= FAN_TURN_ON_INDOOR_HUMIDITY && absHumidityDiff > 0.5;
 }
 
 void displayFlapStatusOnLcd() {
