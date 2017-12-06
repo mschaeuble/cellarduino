@@ -1,0 +1,8 @@
+Frontend
+http://freeax.no-ip.biz/~michele/sensorserver/
+
+Lighttpd Proxy
+/landing/api/... -> localhost:4567/...
+
+Systemd configuration
+/etc/systemd/system/sensorserver.service
