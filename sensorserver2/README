@@ -6,3 +6,6 @@ Lighttpd Proxy
 
 Systemd configuration
 /etc/systemd/system/sensorserver.service
+
+Follow log
+journalctl -u sensorserver --follow
