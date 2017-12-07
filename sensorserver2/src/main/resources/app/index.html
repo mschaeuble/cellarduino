@@ -3,20 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <title>Cellarduino</title>
+    <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 <body>
-<div id="app">
-    <h1>Indoor</h1>
-    <small>{{indoorTimestamp}}</small>
-    <p>{{indoorTemperature}} &deg;C / {{indoorHumidity}}%</p>
+<div class="latest-container">
+    <div class="panel">
+        <div class="title">Indoor</div>
+        <small id="indoorTimestamp"></small>
+        <p><span id="indoorTemperature"></span> &deg;C / <span id="indoorHumidity"></span>%</p>
+    </div>
 
-    <h2>Outdoor</h2>
-    <small>{{outdoorTimestamp}}</small>
-    <p>{{outdoorTemperature}} &deg;C / {{outdoorHumidity}}%</p>
+    <div class="panel">
+        <div class="title">Outdoor</div>
+        <small id="outdoorTimestamp"></small>
+        <p><span id="outdoorTemperature"></span> &deg;C / <span id="outdoorHumidity"></span>%</p>
+    </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.9/vue.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/vue-resource/1.3.4/vue-resource.min.js"></script>
+<select id="scope">
+    <option value="twentyfourhours" selected>24 h</option>
+    <option value="lastweek">Last week</option>
+    <option value="whole">Whole period</option>
+</select>
+<div id="chart"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.19.3/moment.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/flot/0.8.3/jquery.flot.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/flot/0.8.3/jquery.flot.time.min.js"></script>
 <script src="controller.js"></script>
 </body>
 </html>
