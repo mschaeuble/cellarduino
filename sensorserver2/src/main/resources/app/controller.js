@@ -81,7 +81,7 @@ $(function () {
             var startDateParameter = determineStartDateParameter();
 
             var indoorDataUrl = "/sensors/indoor/data";
-            var outdoorDataUrl = "/sensors/indoor/data";
+            var outdoorDataUrl = "/sensors/outdoor/data";
             if (startDateParameter) {
                 indoorDataUrl += "?startDate=" + startDateParameter;
                 outdoorDataUrl += "?startDate=" + startDateParameter;
