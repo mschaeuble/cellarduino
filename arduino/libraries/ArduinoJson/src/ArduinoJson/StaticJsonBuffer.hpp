@@ -1,25 +1,13 @@
-// Copyright Benoit Blanchon 2014-2017
+// ArduinoJson - arduinojson.org
+// Copyright Benoit Blanchon 2014-2018
 // MIT License
-//
-// Arduino JSON library
-// https://bblanchon.github.io/ArduinoJson/
-// If you like this project, please add a star!
 
 #pragma once
 
 #include "JsonBufferBase.hpp"
 
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wnon-virtual-dtor"
-#elif defined(__GNUC__)
-#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
-#pragma GCC diagnostic push
-#endif
-#pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
-#endif
-
 namespace ArduinoJson {
+namespace Internals {
 
 class StaticJsonBufferBase : public JsonBufferBase<StaticJsonBufferBase> {
  public:
@@ -81,6 +69,9 @@ class StaticJsonBufferBase : public JsonBufferBase<StaticJsonBufferBase> {
     return String(this);
   }
 
+ protected:
+  ~StaticJsonBufferBase() {}
+
  private:
   void alignNextAlloc() {
     _size = round_size_up(_size);
@@ -100,14 +91,26 @@ class StaticJsonBufferBase : public JsonBufferBase<StaticJsonBufferBase> {
   size_t _capacity;
   size_t _size;
 };
+}
+
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnon-virtual-dtor"
+#elif defined(__GNUC__)
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#pragma GCC diagnostic push
+#endif
+#pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
+#endif
 
 // Implements a JsonBuffer with fixed memory allocation.
 // The template paramenter CAPACITY specifies the capacity of the buffer in
 // bytes.
 template <size_t CAPACITY>
-class StaticJsonBuffer : public StaticJsonBufferBase {
+class StaticJsonBuffer : public Internals::StaticJsonBufferBase {
  public:
-  explicit StaticJsonBuffer() : StaticJsonBufferBase(_buffer, CAPACITY) {}
+  explicit StaticJsonBuffer()
+      : Internals::StaticJsonBufferBase(_buffer, CAPACITY) {}
 
  private:
   char _buffer[CAPACITY];

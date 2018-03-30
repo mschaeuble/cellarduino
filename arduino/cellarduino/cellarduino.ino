@@ -488,7 +488,7 @@ void openFlap() {
   digitalWrite(FLAP_ENTRANCE_RELAY_PIN_1, LOW);
   digitalWrite(FLAP_ENTRANCE_RELAY_PIN_2, LOW);
   delay(100);
-  digitalWrite(FLAP_ENTRANCE_RELAY_PIN_1, HIGH);
+  digitalWrite(FLAP_ENTRANCE_RELAY_PIN_2, HIGH);
   
   digitalWrite(FLAP_PATIO_RELAY_PIN, HIGH);
   delay(FLAPS_MOVE_TIME_MS);
@@ -499,7 +499,7 @@ void closeFlap() {
   digitalWrite(FLAP_ENTRANCE_RELAY_PIN_1, LOW);
   digitalWrite(FLAP_ENTRANCE_RELAY_PIN_2, LOW);
   delay(100);
-  digitalWrite(FLAP_ENTRANCE_RELAY_PIN_2, HIGH);
+  digitalWrite(FLAP_ENTRANCE_RELAY_PIN_1, HIGH);
 
   digitalWrite(FLAP_PATIO_RELAY_PIN, LOW);
   delay(FLAPS_MOVE_TIME_MS);
