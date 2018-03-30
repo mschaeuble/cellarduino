@@ -2,7 +2,6 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <LiquidCrystal.h>
-#include <Servo.h>
 #include <ArduinoJson.h>
 
 
@@ -18,14 +17,12 @@
 #define CLIMATE_SENSOR_INDOOR_PIN 24
 #define CLIMATE_SENSOR_INDOOR_TYPE DHT22
 
-
-#define FLAP_RELAY_PIN 26
+#define FLAP_ENTRANCE_RELAY_PIN_1 22
+#define FLAP_ENTRANCE_RELAY_PIN_2 44
+#define FLAP_PATIO_RELAY_PIN 26
 #define FLAPS_MOVE_TIME_MS 15000
 
-
-#define SERVO_PIN 22
 #define FAN_PIN 48
-
 
 #define SERVER_IP "192.168.1.4"
 #define SERVER_PORT 80
@@ -48,9 +45,6 @@ byte mac[] = {
 
 
 LiquidCrystal lcd(38, 36, 34, 32, 30, 28);
-
-
-Servo servo;
 
 
 // =============================
@@ -76,7 +70,6 @@ struct SensorData {
 
 boolean flapsOpen = false;
 boolean fanOn = false;
-int servoPosition = 90;
 
 
 DHT dhtIndoor(CLIMATE_SENSOR_INDOOR_PIN, CLIMATE_SENSOR_INDOOR_TYPE);
@@ -92,28 +85,25 @@ void setup() {
   digitalWrite(4, HIGH);
 
 
-  pinMode(FLAP_RELAY_PIN, OUTPUT);
-
+  pinMode(FLAP_ENTRANCE_RELAY_PIN_1, OUTPUT);
+  pinMode(FLAP_ENTRANCE_RELAY_PIN_2, OUTPUT);
+  pinMode(FLAP_PATIO_RELAY_PIN, OUTPUT);
 
   pinMode(FAN_PIN, OUTPUT);
   digitalWrite(FAN_PIN, HIGH); // turn off fan
 
-
   /*closeFlap();
-    delay(10000);
+    delay(15000);
     openFlap();
-    delay(10000);
+    delay(15000);
     closeFlap();*/
-
 
   lcd.begin(24, 2);
   lcd.setCursor(0, 0);
   lcd.print(F("Booting..."));
 
-
   dhtIndoor.begin();
-
-
+  
   getIPViaDHCP();
 }
 
@@ -134,13 +124,8 @@ void getIPViaDHCP() {
 
 void loop() {
   Ethernet.maintain();
-
-
   SensorData indoorClimate, outdoorClimate;
-
-
   clearLcd();
-
 
   if (measureIndoorClimate(indoorClimate) != SUCCESSFUL) {
     goToErrorState();
@@ -253,9 +238,6 @@ boolean readResponse(char* body) {
   boolean currentLineIsBlank = false;
   int connectLoop = 0; // controls the hardware fail timeout
 
-
-
-
   while (client.connected())
   {
     while (client.available())
@@ -284,10 +266,7 @@ boolean readResponse(char* body) {
       // set connectLoop to zero if a packet arrives
       connectLoop = 0;
     }
-
-
     connectLoop++;
-
 
     // if more than 10000 milliseconds since the last packet
     if (connectLoop > 10000)
@@ -299,12 +278,8 @@ boolean readResponse(char* body) {
       return ERROR;
     }
 
-
     delay(1); // this is a delay for the connectLoop timing
   }
-
-
-
 
   Serial.println(F("disconnecting."));
   client.stop();
@@ -315,17 +290,14 @@ boolean readResponse(char* body) {
 boolean parseResponse(char* responseBody, struct SensorData & climate) {
   StaticJsonBuffer<2000> jsonBuffer;
 
-
   JsonObject& root = jsonBuffer.parseObject(responseBody);
   if (!root.success()) {
     Serial.println(F("parseObject() failed"));
     return ERROR;
   }
 
-
   climate.relativeHumidity = root[F("main")][F("humidity")];
   climate.temperature = root[F("main")][F("temp")];
-
 
   return SUCCESSFUL;
 }
@@ -336,8 +308,6 @@ void clearLcd() {
     lcd.setCursor(0, line);
     lcd.print(F("                        "));
   }
-
-
   lcd.setCursor(0, 0);
 }
 
@@ -348,24 +318,19 @@ const char degreeSymbol[] = {(char)223, 'C', 0};
 void displayClimateOnLCD(struct SensorData climate, int line, const char* location) {
   char buffer[5]; // buffer for temp/humidity incl. decimal point & possible minus sign
 
-
   char printLine[18] = " ";
   strcat(printLine, location);
   strcat(printLine, ": ");
-
 
   dtostrf(climate.temperature, 4, 1, buffer); // 4=minimum width, 1=precision
   strcat(printLine, buffer);
   strcat(printLine, degreeSymbol);
 
-
   strcat(printLine, "/");
-
 
   dtostrf(climate.relativeHumidity, 3, 1, buffer);
   strcat(printLine, buffer);
   strcat(printLine, "%");
-
 
   lcd.setCursor(0, line);
   lcd.print(printLine);
@@ -375,7 +340,6 @@ void displayClimateOnLCD(struct SensorData climate, int line, const char* locati
 boolean sendClimateToServer(struct SensorData climate, const char* url) {
   char jsonString[39] = {};
   fillWithSensorData(climate, jsonString);
-
 
   return sendToServer(url, jsonString);
 }
@@ -392,18 +356,14 @@ boolean sendToServer(const char* url, const char *jsonString) {
     client.print(url);
     client.println(F(" HTTP/1.1"));
 
-
     client.print(F("Host: "));
     client.println(SERVER_IP);
-
 
     client.print(F("Content-Type: "));
     client.println(CONTENT_TYPE_JSON);
 
-
     client.print(F("Content-length: "));
     client.println(strlen(jsonString));
-
 
     client.println(F("Connection: close"));
     client.println();
@@ -413,9 +373,7 @@ boolean sendToServer(const char* url, const char *jsonString) {
     return ERROR;
   }
 
-
   int connectLoop = 0;
-
 
   while(client.connected())
   {
@@ -424,7 +382,6 @@ boolean sendToServer(const char* url, const char *jsonString) {
       Serial.write(client.read());
       connectLoop = 0;
     }
-
 
     delay(1);
     connectLoop++;
@@ -448,18 +405,15 @@ boolean sendToServer(const char* url, const char *jsonString) {
 void fillWithSensorData(struct SensorData climate, char *jsonString) {
   char buffer[5]; // buffer for temp/humidity incl. decimal point & possible minus sign
 
-
   // temperature
   strcat(jsonString, "{\"temperature\":");
   dtostrf(climate.temperature, 1, 1, buffer); // min width: 1 characters, 1 decimal
   strcat(jsonString, buffer);
 
-
   // humidity
   strcat(jsonString, ",\"humidity\":");
   dtostrf(climate.relativeHumidity, 1, 1, buffer);
   strcat(jsonString, buffer);
-
 
   strcat(jsonString, "}");
 }
@@ -531,38 +485,24 @@ void moveFlap() {
 
 
 void openFlap() {
-  moveServo(SERVO_PIN, servoPosition, 45);
-  delay(1000);
-  digitalWrite(FLAP_RELAY_PIN, HIGH);
+  digitalWrite(FLAP_ENTRANCE_RELAY_PIN_1, LOW);
+  digitalWrite(FLAP_ENTRANCE_RELAY_PIN_2, LOW);
+  delay(100);
+  digitalWrite(FLAP_ENTRANCE_RELAY_PIN_1, HIGH);
+  
+  digitalWrite(FLAP_PATIO_RELAY_PIN, HIGH);
   delay(FLAPS_MOVE_TIME_MS);
 }
 
 
 void closeFlap() {
-  moveServo(SERVO_PIN, servoPosition, 130);
-  delay(1000);
-  digitalWrite(FLAP_RELAY_PIN, LOW);
+  digitalWrite(FLAP_ENTRANCE_RELAY_PIN_1, LOW);
+  digitalWrite(FLAP_ENTRANCE_RELAY_PIN_2, LOW);
+  delay(100);
+  digitalWrite(FLAP_ENTRANCE_RELAY_PIN_2, HIGH);
+
+  digitalWrite(FLAP_PATIO_RELAY_PIN, LOW);
   delay(FLAPS_MOVE_TIME_MS);
-}
-
-
-void moveServo(int servoPin, int &positionVariable, int endPosition) {
-  servo.attach(servoPin);
-
-
-  while (positionVariable != endPosition)
-  {
-    if (positionVariable < endPosition) {
-      positionVariable++;
-    } else if (positionVariable > endPosition) {
-      positionVariable--;
-    }
-
-
-    servo.write(positionVariable);
-    delay(15);
-  }
-  servo.detach();
 }
 
 
