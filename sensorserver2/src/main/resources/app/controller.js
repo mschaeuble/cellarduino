@@ -1,13 +1,13 @@
 $(function () {
 
         $.getJSON('/sensors/indoor/latest', function (sensorDataDTO) {
-            $("#indoorTimestamp").text(moment(sensorDataDTO.timestamp + "+0000").valueOf());
+            $("#indoorTimestamp").text(moment(sensorDataDTO.timestamp + "+0000").format('DD.MM.YYYY hh:mm:ss'));
             $("#indoorTemperature").text(sensorDataDTO.temperature);
             $("#indoorHumidity").text(sensorDataDTO.humidity);
         });
 
         $.getJSON('/sensors/outdoor/latest', function (sensorDataDTO) {
-            $("#outdoorTimestamp").text(moment(sensorDataDTO.timestamp + "+0000").valueOf());
+            $("#outdoorTimestamp").text(moment(sensorDataDTO.timestamp + "+0000").format('DD.MM.YYYY hh:mm:ss'));
             $("#outdoorTemperature").text(sensorDataDTO.temperature);
             $("#outdoorHumidity").text(sensorDataDTO.humidity);
         });
