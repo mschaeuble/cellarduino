@@ -1,0 +1,20 @@
+Arduino Mega Pins
+0 Serial
+1 Serial
+
+10 Ethernet
+11 Ethernet
+12 Ethernet
+13 Ethernet
+
+22 Klappenrelais 1 Eingang
+24 DHT 22 (Climate Indoor)
+26 Klappenrelais Terrasse
+28 LCD
+30 LCD
+32 LCD
+34 LCD
+36 LCD (E)
+38 LCD (RS)
+44 Klappenrelais 2 Eingang
+48 Lüfter
